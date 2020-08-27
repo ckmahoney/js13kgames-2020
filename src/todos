@@ -1,0 +1,8 @@
+[] Create the opening room selection ( Red, Yellow, or Blue bassline )
+[] Create a room generator
+  [] with drones
+  [] with doors
+[] Controls
+	[] Add player movement controls
+	[] Add drone movement
+	[] Implement touch attacks

@@ -41,15 +41,15 @@ function play() {
         };
     };
     var createPlayer = function () {
-        return __assign(__assign({ health: 100, x: 10, y: 30 }, (createShield())), { strength: 100, speed: 100, luck: 100 });
+        return __assign(__assign({ x: 10, y: 30 }, (createShield())), { strength: 100, speed: 100, luck: 100 });
     };
     var createDrone = function () {
-        return __assign({ health: 30, role: Role.Bass, clan: Clan.Yellow, x: 30, y: 23 }, (createShield()));
+        return __assign({ role: Role.Bass, clan: Clan.Yellow, x: 30, y: 23 }, (createShield()));
     };
     var drawDrone = function (ctx, unit) {
         var x = unit.x, y = unit.y;
         ctx.fillStyle = "rgb(33,99,111)";
-        ctx.drawRect(x, y, 50, 50);
+        ctx.rect(x, y, 50, 50);
     };
     /** Grabs the rendering context to provide render callback. */
     var setupCanvas = function () {

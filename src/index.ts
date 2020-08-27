@@ -13,16 +13,9 @@ enum Clan
   }
 
 
-  
-
 type Clansmen = 
   { clan: Clan
   , role: Role
-  }
-
-
-type Health = Shield &
-  { health: number
   }
 
 
@@ -60,12 +53,6 @@ type UnitPosition = {
   , z?: number }
 
 
-type Size = 
-  { width: number
-  , height: number
-  , scale?: number 
-  }
-
 // type Peripherals =
 //   { keydown: any[]
 //   , click: 
@@ -88,6 +75,10 @@ interface UpdateStage
   { (state: State): SideFX }
 
 
+interface Draw
+  { (ctx: CanvasRenderingContext2D, ...args: any): SideFX }
+
+
 const controls: any[] = []
 
 
@@ -97,10 +88,10 @@ type Empty = null | undefined
 type SideFX = void
 
 
-type Player = UnitPosition & Health & Stats
+type Player = UnitPosition & Stats
 
 
-type Drone = UnitPosition & Health & Clansmen
+type Drone = UnitPosition &  Clansmen
 
 
 function play() {
@@ -120,8 +111,6 @@ function play() {
   }
 
 
-
-
   const createShield = () => {
     return {
       bass: 0,
@@ -134,7 +123,6 @@ function play() {
 
   const createPlayer = (): Player => {
     return {
-      health: 100,
       x: 10,
       y: 30,
       ...(createShield()),
@@ -145,10 +133,8 @@ function play() {
   }
 
 
-
   const createDrone = (): Drone => {
     return {
-      health: 30,
       role: Role.Bass,
       clan: Clan.Yellow,
       x: 30,
@@ -158,19 +144,19 @@ function play() {
   }
 
 
-  const drawDrone = (ctx, unit: Drone): SideFX => {
+  const drawDrone: Draw = (ctx, unit: Drone): SideFX => {
     const {x, y} = unit
     ctx.fillStyle = "rgb(33,99,111)"
-    ctx.drawRect(x, y, 50, 50)
+    ctx.rect(x, y, 50, 50)
   }
 
 
   /** Grabs the rendering context to provide render callback. */
   const setupCanvas = () => {
     const canvas = <HTMLCanvasElement> window.document.querySelector("canvas")
-    const ctx = <CanvasRenderingContext2D> canvas.getContext('2d');
+    const ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
     
-    return function draw(d) {
+    return function draw( d: Draw ): SideFX  {
       ctx.beginPath()
       d(ctx)
       ctx.closePath()
@@ -199,11 +185,11 @@ function play() {
     }
 
 
-
   const tick = (time: DOMHighResTimeStamp) => {
     const nextState = handleTick(controls, state)
     updateStage(nextState)
     requestAnimationFrame(tick)
   }
+
 
 }
