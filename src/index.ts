@@ -44,13 +44,15 @@ type Room =
 type State = 
   { player: Player
   , drones: Drone[]
+  , room: Room
   }
 
 
-type UnitPosition = { 
-  x: number
+type UnitPosition =  
+  { x: number
   , y: number
-  , z?: number }
+  , z?: number 
+  }
 
 
 // type Peripherals =
@@ -87,6 +89,10 @@ interface Draw
   { (ctx: CanvasRenderingContext2D): SideFX }
 
 
+interface StatefulDraw
+  { (state: State): Draw }
+
+
 const controls: any[] = []
 
 
@@ -99,7 +105,8 @@ type SideFX = void
 type Player = UnitPosition & Stats
 
 
-type Drone = UnitPosition &  Clansmen
+type Drone = UnitPosition &
+  { shield: number }
 
 
 function play() {
@@ -143,26 +150,42 @@ function play() {
 
 
   const createDrone = (): Drone => {
-    return {
-      role: Role.Bass,
-      clan: Clan.Yellow,
-      x: 30,
-      y:23,
-      ...(createShield())
+    return (
+      { x: 30
+      , y:23
+      , shield: 2
+      } )
+  }
+
+
+  const getDroneColor = (clan: Clan): string => {
+    switch( clan ) {
+      case Clan.Red: return 'red'
+      case Clan.Blue: return 'blue'
+      case Clan.Yellow: return 'yellow'
+      default: return 'black'
     }
   }
 
 
-  // const drawDrone: Draw = (ctx, unit: Drone): SideFX => {
-  //   const {x, y} = unit
-  //   ctx.fillStyle = "rgb(33,99,111)"
-  //   ctx.rect(x, y, 50, 50)
-  // }
+  const drawNPCS: StatefulDraw = (state): Draw => {
+    const color = getDroneColor(state.room.clan)
+    return (ctx) => {
+      state.drones.forEach( (unit,i) => {
+        const {x, y} = unit
+        ctx.fillStyle = color
+        ctx.fillRect(i*19, i*31, 50 + (i*2), 50 + (i*2))  
+      } )
+      
+    }
+  }
 
 
-  const drawRoom: Draw = (ctx): SideFX => {
-    ctx.strokeStyle = "black"
-    ctx.strokeRect(0, 0, 600, 600)
+  const drawRoom: StatefulDraw = (state): Draw => {
+    return (ctx) => {
+      ctx.strokeStyle = "black"
+      ctx.strokeRect(0, 0, 600, 600)
+    }
   }
 
 
@@ -183,17 +206,19 @@ function play() {
   }
 
 
-  const getDrones = (qty = 4) => {
-    let drones: Drone[] = []
-    for (let i =0; i <qty; i++)
-      drones = drones.concat(createDrone())
+  const getDrones = (qty = 4, drones: Drone[] = []): Drone[] => {
+    if ( qty === 0 ) 
+      return drones
 
-    return drones
+    drones = drones.concat(createDrone())
+    return getDrones(qty-1, drones)
   }
 
 
   const updateStage: UpdateStage = (state, ill) => {
-    ill( drawRoom )
+    ill( (ctx) => ctx.clearRect(0,0,900,900) )
+    ill( drawRoom(state) )
+    ill( drawNPCS(state) )
   }
 
 
@@ -211,7 +236,7 @@ function play() {
     requestAnimationFrame(tick)
   }
 
-  tick()
+  tick(0)
 }
 
 play()

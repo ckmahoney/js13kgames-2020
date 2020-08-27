@@ -44,16 +44,34 @@ function play() {
         return __assign(__assign({ x: 10, y: 30 }, (createShield())), { strength: 100, speed: 100, luck: 100 });
     };
     var createDrone = function () {
-        return __assign({ role: Role.Bass, clan: Clan.Yellow, x: 30, y: 23 }, (createShield()));
+        return ({ x: 30,
+            y: 23,
+            shield: 2
+        });
     };
-    // const drawDrone: Draw = (ctx, unit: Drone): SideFX => {
-    //   const {x, y} = unit
-    //   ctx.fillStyle = "rgb(33,99,111)"
-    //   ctx.rect(x, y, 50, 50)
-    // }
-    var drawRoom = function (ctx) {
-        ctx.strokeStyle = "black";
-        ctx.strokeRect(0, 0, 600, 600);
+    var getDroneColor = function (clan) {
+        switch (clan) {
+            case Clan.Red: return 'red';
+            case Clan.Blue: return 'blue';
+            case Clan.Yellow: return 'yellow';
+            default: return 'black';
+        }
+    };
+    var drawNPCS = function (state) {
+        var color = getDroneColor(state.room.clan);
+        return function (ctx) {
+            state.drones.forEach(function (unit, i) {
+                var x = unit.x, y = unit.y;
+                ctx.fillStyle = color;
+                ctx.fillRect(i * 19, i * 31, 50 + (i * 2), 50 + (i * 2));
+            });
+        };
+    };
+    var drawRoom = function (state) {
+        return function (ctx) {
+            ctx.strokeStyle = "black";
+            ctx.strokeRect(0, 0, 600, 600);
+        };
     };
     /** Grabs the rendering context to provide render callback. */
     var setupCanvas = function () {
@@ -68,15 +86,18 @@ function play() {
         };
         return handleDraw;
     };
-    var getDrones = function (qty) {
+    var getDrones = function (qty, drones) {
         if (qty === void 0) { qty = 4; }
-        var drones = [];
-        for (var i = 0; i < qty; i++)
-            drones = drones.concat(createDrone());
-        return drones;
+        if (drones === void 0) { drones = []; }
+        if (qty === 0)
+            return drones;
+        drones = drones.concat(createDrone());
+        return getDrones(qty - 1, drones);
     };
     var updateStage = function (state, ill) {
-        ill(drawRoom);
+        ill(function (ctx) { return ctx.clearRect(0, 0, 900, 900); });
+        ill(drawRoom(state));
+        ill(drawNPCS(state));
     };
     var draw = setupCanvas();
     var state = { player: createPlayer(),
@@ -88,6 +109,6 @@ function play() {
         updateStage(nextState, draw);
         requestAnimationFrame(tick);
     };
-    tick();
+    tick(0);
 }
 play();
