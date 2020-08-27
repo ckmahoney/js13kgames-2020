@@ -24,6 +24,8 @@ var Clan;
 })(Clan || (Clan = {}));
 var controls = [];
 function play() {
+    var width = 900;
+    var height = 900;
     /** Parses controls and actions and resolves to a new state. */
     var handleTick = function (controls, state) {
         return state;
@@ -50,12 +52,8 @@ function play() {
         });
     };
     var getDroneColor = function (clan) {
-        switch (clan) {
-            case Clan.Red: return 'red';
-            case Clan.Blue: return 'blue';
-            case Clan.Yellow: return 'yellow';
-            default: return 'black';
-        }
+        var _a;
+        return (_a = {}, _a[Clan.Red] = 'red', _a[Clan.Blue] = 'blue', _a[Clan.Yellow] = 'yellow', _a)[clan];
     };
     var drawNPCS = function (state) {
         var color = getDroneColor(state.room.clan);
@@ -67,8 +65,22 @@ function play() {
             });
         };
     };
+    var drawTiles = function (ctx) {
+        var tw = 80;
+        var th = 80;
+        var nx = width / tw;
+        var ny = height / th;
+        ctx.fillStyle = 'grey';
+        ctx.stokeStyle = 'cyan';
+        for (var i = 0; i < nx; i++)
+            for (var j = 0; j < ny; j++) {
+                ctx.fillRect(i * tw - i, j * th - j, i * tw + tw, j * tw + tw);
+                ctx.strokeRect(i * tw, j * th, i * tw + tw, j * tw + tw);
+            }
+    };
     var drawRoom = function (state) {
         return function (ctx) {
+            drawTiles(ctx);
             ctx.strokeStyle = "black";
             ctx.strokeRect(0, 0, 600, 600);
         };
@@ -102,7 +114,7 @@ function play() {
     var draw = setupCanvas();
     var state = { player: createPlayer(),
         drones: getDrones(),
-        room: { clan: Clan.Blue, prev: null, role: Role.Bass }
+        room: { clan: Clan.Yellow, prev: null, role: Role.Bass }
     };
     var tick = function (time) {
         var nextState = handleTick(controls, state);

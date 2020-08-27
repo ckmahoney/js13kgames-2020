@@ -110,6 +110,8 @@ type Drone = UnitPosition &
 
 
 function play() {
+  const width = 900
+  const height = 900
 
 
   /** Parses controls and actions and resolves to a new state. */
@@ -158,14 +160,11 @@ function play() {
   }
 
 
-  const getDroneColor = (clan: Clan): string => {
-    switch( clan ) {
-      case Clan.Red: return 'red'
-      case Clan.Blue: return 'blue'
-      case Clan.Yellow: return 'yellow'
-      default: return 'black'
-    }
-  }
+  const getDroneColor = (clan: Clan): string => (
+    { [Clan.Red]: 'red'
+    , [Clan.Blue]: 'blue'
+    , [Clan.Yellow]: 'yellow'
+    })[clan]
 
 
   const drawNPCS: StatefulDraw = (state): Draw => {
@@ -176,13 +175,30 @@ function play() {
         ctx.fillStyle = color
         ctx.fillRect(i*19, i*31, 50 + (i*2), 50 + (i*2))  
       } )
-      
     }
   }
 
 
+  const drawTiles = (ctx) => {
+    let tw = 80
+    let th = 80
+    let nx = width / tw
+    let ny = height / th
+    ctx.fillStyle = 'grey'
+    ctx.stokeStyle = 'cyan'
+
+    for (let i=0;i<nx;i++) 
+      for (let j=0;j<ny;j++) {
+        ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
+        ctx.strokeRect(i*tw, j*th, i*tw + tw, j*tw+tw)
+      }
+  }
+
+
   const drawRoom: StatefulDraw = (state): Draw => {
+
     return (ctx) => {
+      drawTiles(ctx)
       ctx.strokeStyle = "black"
       ctx.strokeRect(0, 0, 600, 600)
     }
@@ -226,7 +242,7 @@ function play() {
   const state = 
     { player: createPlayer()
     , drones: getDrones()
-    , room: { clan: Clan.Blue, prev: null, role: Role.Bass }
+    , room: { clan: Clan.Yellow, prev: null, role: Role.Bass }
     }
 
 
