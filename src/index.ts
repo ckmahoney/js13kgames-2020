@@ -71,12 +71,20 @@ interface Render
   { (state: State): Empty }
 
 
+interface Illustrate 
+  { (d: Draw) : SideFX }
+
+
+interface Setup
+  { (): Illustrate }
+
+
 interface UpdateStage
-  { (state: State): SideFX }
+  { (state: State, draw: Illustrate): SideFX }
 
 
 interface Draw
-  { (ctx: CanvasRenderingContext2D, ...args: any): SideFX }
+  { (ctx: CanvasRenderingContext2D): SideFX }
 
 
 const controls: any[] = []
@@ -96,12 +104,13 @@ type Drone = UnitPosition &  Clansmen
 
 function play() {
 
+
   /** Parses controls and actions and resolves to a new state. */
   const handleTick: HandleTick = (controls, state): State => {
     return state
   }
 
-
+  
   const createRoom: CreateRoom = (clan, prev) => {
     return (
       { clan
@@ -144,52 +153,65 @@ function play() {
   }
 
 
-  const drawDrone: Draw = (ctx, unit: Drone): SideFX => {
-    const {x, y} = unit
-    ctx.fillStyle = "rgb(33,99,111)"
-    ctx.rect(x, y, 50, 50)
+  // const drawDrone: Draw = (ctx, unit: Drone): SideFX => {
+  //   const {x, y} = unit
+  //   ctx.fillStyle = "rgb(33,99,111)"
+  //   ctx.rect(x, y, 50, 50)
+  // }
+
+
+  const drawRoom: Draw = (ctx): SideFX => {
+    ctx.strokeStyle = "black"
+    ctx.strokeRect(0, 0, 600, 600)
   }
 
 
   /** Grabs the rendering context to provide render callback. */
-  const setupCanvas = () => {
+  const setupCanvas: Setup = () => {
     const canvas = <HTMLCanvasElement> window.document.querySelector("canvas")
+    canvas.width = 900
+    canvas.height = 900
     const ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
-    
-    return function draw( d: Draw ): SideFX  {
+
+    const handleDraw: Illustrate = ( d: Draw ): SideFX  => {
       ctx.beginPath()
       d(ctx)
       ctx.closePath()
     }
+
+    return handleDraw
   }
 
 
   const getDrones = (qty = 4) => {
-    let drones = []
+    let drones: Drone[] = []
     for (let i =0; i <qty; i++)
-      drones.push(createDrone())
+      drones = drones.concat(createDrone())
 
     return drones
   }
 
 
-  const updateStage: UpdateStage = (state) => {
-    // ctx.clearRect(0,0,window.innerWidth, window.innerHeight)
-    // draw(state)
+  const updateStage: UpdateStage = (state, ill) => {
+    ill( drawRoom )
   }
 
 
-  let state = 
+  const draw = setupCanvas()
+  const state = 
     { player: createPlayer()
     , drones: getDrones()
+    , room: { clan: Clan.Blue, prev: null, role: Role.Bass }
     }
 
 
   const tick = (time: DOMHighResTimeStamp) => {
     const nextState = handleTick(controls, state)
-    updateStage(nextState)
+    updateStage(nextState, draw)
     requestAnimationFrame(tick)
   }
 
-
+  tick()
 }
+
+play()

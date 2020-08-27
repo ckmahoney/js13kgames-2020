@@ -46,38 +46,48 @@ function play() {
     var createDrone = function () {
         return __assign({ role: Role.Bass, clan: Clan.Yellow, x: 30, y: 23 }, (createShield()));
     };
-    var drawDrone = function (ctx, unit) {
-        var x = unit.x, y = unit.y;
-        ctx.fillStyle = "rgb(33,99,111)";
-        ctx.rect(x, y, 50, 50);
+    // const drawDrone: Draw = (ctx, unit: Drone): SideFX => {
+    //   const {x, y} = unit
+    //   ctx.fillStyle = "rgb(33,99,111)"
+    //   ctx.rect(x, y, 50, 50)
+    // }
+    var drawRoom = function (ctx) {
+        ctx.strokeStyle = "black";
+        ctx.strokeRect(0, 0, 600, 600);
     };
     /** Grabs the rendering context to provide render callback. */
     var setupCanvas = function () {
         var canvas = window.document.querySelector("canvas");
+        canvas.width = 900;
+        canvas.height = 900;
         var ctx = canvas.getContext('2d');
-        return function draw(d) {
+        var handleDraw = function (d) {
             ctx.beginPath();
             d(ctx);
             ctx.closePath();
         };
+        return handleDraw;
     };
     var getDrones = function (qty) {
         if (qty === void 0) { qty = 4; }
         var drones = [];
         for (var i = 0; i < qty; i++)
-            drones.push(createDrone());
+            drones = drones.concat(createDrone());
         return drones;
     };
-    var updateStage = function (state) {
-        // ctx.clearRect(0,0,window.innerWidth, window.innerHeight)
-        // draw(state)
+    var updateStage = function (state, ill) {
+        ill(drawRoom);
     };
+    var draw = setupCanvas();
     var state = { player: createPlayer(),
-        drones: getDrones()
+        drones: getDrones(),
+        room: { clan: Clan.Blue, prev: null, role: Role.Bass }
     };
     var tick = function (time) {
         var nextState = handleTick(controls, state);
-        updateStage(nextState);
+        updateStage(nextState, draw);
         requestAnimationFrame(tick);
     };
+    tick();
 }
+play();
