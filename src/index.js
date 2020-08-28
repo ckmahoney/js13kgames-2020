@@ -51,12 +51,12 @@ function play() {
             shield: 2
         });
     };
-    var getDroneColor = function (clan) {
+    var getClanColor = function (clan) {
         var _a;
         return (_a = {}, _a[Clan.Red] = 'red', _a[Clan.Blue] = 'blue', _a[Clan.Yellow] = 'yellow', _a)[clan];
     };
     var drawNPCS = function (state) {
-        var color = getDroneColor(state.room.clan);
+        var color = getClanColor(state.room.clan);
         return function (ctx) {
             state.drones.forEach(function (unit, i) {
                 var x = unit.x, y = unit.y;
@@ -78,9 +78,26 @@ function play() {
                 ctx.strokeRect(i * tw, j * th, i * tw + tw, j * tw + tw);
             }
     };
+    var drawDoors = function (ctx, clan) {
+        console.log('received clan: ', clan);
+        // @ts-ignore
+        var clans = Object.values(Clan).filter(function (c) { return c != clan; });
+        console.log('found clans', clans);
+        ctx.fillStyle = getClanColor[clans[0]];
+        var doorHeight = 200;
+        var offsetWall = 50;
+        var doorWidth = 200;
+        var offsetCeiling = (height / 2) + (doorHeight / 2);
+        // left door
+        ctx.fillRect(offsetWall, offsetCeiling, offsetWall + doorWidth, offsetCeiling + doorHeight);
+        ctx.fillStyle = getClanColor[clans[1]];
+        // right door
+        ctx.fillRect(width - offsetWall, offsetCeiling, width - offsetWall + doorWidth, offsetCeiling + doorHeight);
+    };
     var drawRoom = function (state) {
         return function (ctx) {
             drawTiles(ctx);
+            drawDoors(ctx, state.room.clan);
             ctx.strokeStyle = "black";
             ctx.strokeRect(0, 0, 600, 600);
         };

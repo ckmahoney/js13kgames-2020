@@ -160,7 +160,7 @@ function play() {
   }
 
 
-  const getDroneColor = (clan: Clan): string => (
+  const getClanColor = (clan: Clan): string => (
     { [Clan.Red]: 'red'
     , [Clan.Blue]: 'blue'
     , [Clan.Yellow]: 'yellow'
@@ -168,7 +168,7 @@ function play() {
 
 
   const drawNPCS: StatefulDraw = (state): Draw => {
-    const color = getDroneColor(state.room.clan)
+    const color = getClanColor(state.room.clan)
     return (ctx) => {
       state.drones.forEach( (unit,i) => {
         const {x, y} = unit
@@ -179,7 +179,7 @@ function play() {
   }
 
 
-  const drawTiles = (ctx) => {
+  const drawTiles = (ctx): SideFX => {
     let tw = 80
     let th = 80
     let nx = width / tw
@@ -195,10 +195,30 @@ function play() {
   }
 
 
-  const drawRoom: StatefulDraw = (state): Draw => {
+  const drawDoors = (ctx, clan: Clan): SideFX => {
+    console.log('received clan: ' , clan);
+    // @ts-ignore
+    let clans = Object.values( Clan ).filter( c => c != clan )
+    console.log('found clans',clans)
+    ctx.fillStyle = getClanColor[clans[0]]
+    let doorHeight = 200
+    let offsetWall = 50
+    let doorWidth = 200
+    let offsetCeiling = (height / 2) + (doorHeight/2)
 
+    // left door
+    ctx.fillRect(offsetWall, offsetCeiling, offsetWall + doorWidth, offsetCeiling + doorHeight)
+    ctx.fillStyle = getClanColor[clans[1]]
+
+    // right door
+    ctx.fillRect(width - offsetWall, offsetCeiling, width -offsetWall + doorWidth, offsetCeiling + doorHeight)
+  }
+
+
+  const drawRoom: StatefulDraw = (state): Draw => {
     return (ctx) => {
       drawTiles(ctx)
+      drawDoors(ctx, state.room.clan)
       ctx.strokeStyle = "black"
       ctx.strokeRect(0, 0, 600, 600)
     }
@@ -212,7 +232,7 @@ function play() {
     canvas.height = 900
     const ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
 
-    const handleDraw: Illustrate = ( d: Draw ): SideFX  => {
+    const handleDraw: Illustrate = (d: Draw): SideFX  => {
       ctx.beginPath()
       d(ctx)
       ctx.closePath()
