@@ -1,15 +1,15 @@
 enum Role 
-  { Bass = "bass"
-  , Tenor = "tenor"
-  , Alto = "alto"
-  , Soprano = "soprano"
+  { Bass
+  , Tenor
+  , Alto
+  , Soprano
   }
 
 
 enum Clan
-  { Blue = "Blades"
-  , Red = "Rogues"
-  , Yellow = "Djinns"
+  { Blue
+  , Red
+  , Yellow
   }
 
 
@@ -109,10 +109,16 @@ type Drone = UnitPosition &
   { shield: number }
 
 
+const aN: (a:any) => boolean = n => !isNaN(n)
+
+
+const log = (...any: any[]): SideFX => 
+  <void><unknown> any.map(a => console.log(a))
+
+
 function play() {
   const width = 900
   const height = 900
-
 
   /** Parses controls and actions and resolves to a new state. */
   const handleTick: HandleTick = (controls, state): State => {
@@ -196,22 +202,20 @@ function play() {
 
 
   const drawDoors = (ctx, clan: Clan): SideFX => {
-    console.log('received clan: ' , clan);
-    // @ts-ignore
-    let clans = Object.values( Clan ).filter( c => c != clan )
-    console.log('found clans',clans)
-    ctx.fillStyle = getClanColor[clans[0]]
-    let doorHeight = 200
-    let offsetWall = 50
-    let doorWidth = 200
-    let offsetCeiling = (height / 2) + (doorHeight/2)
+    let altClans = Object.keys(Clan).filter(c => parseInt(c) !== clan).map(a => parseInt(a)).filter(aN)
+    let doorHeight = 40
+    let offsetWall = 0
+    let doorWidth = 20
+    let offsetCeiling = (height-doorHeight)/3
 
     // left door
+    ctx.fillStyle = getClanColor(altClans[0])
+    log(offsetCeiling + doorHeight)
     ctx.fillRect(offsetWall, offsetCeiling, offsetWall + doorWidth, offsetCeiling + doorHeight)
-    ctx.fillStyle = getClanColor[clans[1]]
 
     // right door
-    ctx.fillRect(width - offsetWall, offsetCeiling, width -offsetWall + doorWidth, offsetCeiling + doorHeight)
+    ctx.fillStyle = getClanColor(altClans[1])
+    ctx.fillRect(width-offsetWall-doorWidth, offsetCeiling, width-offsetWall+doorWidth, offsetCeiling + doorHeight)
   }
 
 

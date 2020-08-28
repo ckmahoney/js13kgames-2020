@@ -11,18 +11,26 @@ var __assign = (this && this.__assign) || function () {
 };
 var Role;
 (function (Role) {
-    Role["Bass"] = "bass";
-    Role["Tenor"] = "tenor";
-    Role["Alto"] = "alto";
-    Role["Soprano"] = "soprano";
+    Role[Role["Bass"] = 0] = "Bass";
+    Role[Role["Tenor"] = 1] = "Tenor";
+    Role[Role["Alto"] = 2] = "Alto";
+    Role[Role["Soprano"] = 3] = "Soprano";
 })(Role || (Role = {}));
 var Clan;
 (function (Clan) {
-    Clan["Blue"] = "Blades";
-    Clan["Red"] = "Rogues";
-    Clan["Yellow"] = "Djinns";
+    Clan[Clan["Blue"] = 0] = "Blue";
+    Clan[Clan["Red"] = 1] = "Red";
+    Clan[Clan["Yellow"] = 2] = "Yellow";
 })(Clan || (Clan = {}));
 var controls = [];
+var aN = function (n) { return !isNaN(n); };
+var log = function () {
+    var any = [];
+    for (var _i = 0; _i < arguments.length; _i++) {
+        any[_i] = arguments[_i];
+    }
+    return any.map(function (a) { return console.log(a); });
+};
 function play() {
     var width = 900;
     var height = 900;
@@ -79,20 +87,18 @@ function play() {
             }
     };
     var drawDoors = function (ctx, clan) {
-        console.log('received clan: ', clan);
-        // @ts-ignore
-        var clans = Object.values(Clan).filter(function (c) { return c != clan; });
-        console.log('found clans', clans);
-        ctx.fillStyle = getClanColor[clans[0]];
-        var doorHeight = 200;
-        var offsetWall = 50;
-        var doorWidth = 200;
-        var offsetCeiling = (height / 2) + (doorHeight / 2);
+        var altClans = Object.keys(Clan).filter(function (c) { return parseInt(c) !== clan; }).map(function (a) { return parseInt(a); }).filter(aN);
+        var doorHeight = 40;
+        var offsetWall = 0;
+        var doorWidth = 20;
+        var offsetCeiling = (height - doorHeight) / 3;
         // left door
+        ctx.fillStyle = getClanColor(altClans[0]);
+        log(offsetCeiling + doorHeight);
         ctx.fillRect(offsetWall, offsetCeiling, offsetWall + doorWidth, offsetCeiling + doorHeight);
-        ctx.fillStyle = getClanColor[clans[1]];
         // right door
-        ctx.fillRect(width - offsetWall, offsetCeiling, width - offsetWall + doorWidth, offsetCeiling + doorHeight);
+        ctx.fillStyle = getClanColor(altClans[1]);
+        ctx.fillRect(width - offsetWall - doorWidth, offsetCeiling, width - offsetWall + doorWidth, offsetCeiling + doorHeight);
     };
     var drawRoom = function (state) {
         return function (ctx) {
