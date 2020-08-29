@@ -67,7 +67,7 @@ interface CreateRoom
 
 
 interface HandleTick
-  { (controls: any, state: State): State }
+  { (time: DOMHighResTimeStamp, state: State, draw: Illustrate): SideFX }
 
 
 interface Render
@@ -79,7 +79,7 @@ interface Illustrate
 
 
 interface Setup
-  { (): Illustrate }
+  { (controlCache: Controls, state: State, tick: HandleTick): SideFX }
 
 
 interface UpdateStage
@@ -111,7 +111,7 @@ interface Modulate<T extends Object>
 
 
 
-const controls: any[] = []
+const CONTROLKEYS: Controls = []
 
 
 type Controls = string[]
@@ -179,29 +179,26 @@ const changePosition = <T extends Object>(prev: T, changes: any): T  => {
 }
 
 
-
-const moveLeft = (player, amt=1): Player => (
+const moveLeft = <U extends UnitPosition>(player: U , amt=1): U => (
   {...player, x: player.x -= amt}
 )
 
 
-
-const moveRight = (player, amt=1): Player => (
+const moveRight = <U extends UnitPosition>(player: U, amt=1): U => (
   {...player, x: player.x += amt}
 )
 
 
-
-// type PlayerControlMap =
-//   { [controlKey: string]: Modulate<PlayerControl> }
-
-
-const applyControl = (player, controlKey): Player => (
+const controlMap = () => (
   { ArrowRight: moveRight
   , ArrowLeft: moveLeft
   // , ArrowDown: land
   // , ArrowUp: jump
-  })[controlKey](player)
+  })
+
+
+const applyControl = (player, controlKey): Player => 
+  controlMap()[controlKey](player)
 
 
 function play() {
@@ -321,33 +318,24 @@ function play() {
   }
 
 
-  /** Grabs the rendering context to provide render callback. */
-  const setupCanvas: Setup = () => {
-    const canvas = <HTMLCanvasElement> window.document.querySelector("canvas")
-    canvas.width = 900
-    canvas.height = 900
-
-    const ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
-    const handleDraw: Illustrate = (d: Draw): SideFX  => {
-      ctx.beginPath()
-      d(ctx)
-      ctx.closePath()
-    }
-
-    const handleKeypress = (e: KeyboardEvent): SideFX => {  
-      const off = on(canvas, 'keydown', handleKeypress)  
-    }
-
-    return handleDraw
-  }
+  const addControlKey = (key: string, controls: Controls): Controls =>
+    // @ts-ignore TS2339
+    controls.includes(key) ? controls : controls.concat(key)
 
 
+  const removeControlKey = (key: string, controls: Controls): Controls => 
+    controls.filter(k => k !== key)
 
-  const addControlKey = (e: KeyboardEvent, list: string[]): string[] => {
-    return (e.repeat === true) 
-      ? list
-      : list.concat(e.key)
-      return list
+
+  const handleKeydown = (e: KeyboardEvent, controls: Controls): SideFX => {  
+    if (e.repeat === true)
+      return
+
+    (<HTMLCanvasElement>e.target).addEventListener('keyup', (ev) => {
+      if (e.key === e.key) {
+        removeControlKey(e.key, controls)
+      }
+    })
   }
 
 
@@ -367,31 +355,38 @@ function play() {
   }
 
 
-  const draw = setupCanvas()
+  const tick: HandleTick = (time: DOMHighResTimeStamp, state, draw) => {
+    const nextState = updatePositions(state, controls)
+    updateStage(nextState, draw)
+    requestAnimationFrame((t) => tick(t, nextState, draw))
+  }
+
+
+  /** Grabs the rendering context to provide render callback. */
+  const go: Setup = (controls, state, tick) => {
+    const canvas = <HTMLCanvasElement> window.document.querySelector("canvas")
+    canvas.width = 900
+    canvas.height = 900
+
+    const ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
+    const draw: Illustrate = (d: Draw): SideFX  => {
+      ctx.beginPath()
+      d(ctx)
+      ctx.closePath()
+    }
+
+    canvas.addEventListener('keydown', (e) => handleKeydown(e, controls))
+
+    tick(0, state, draw)
+  }
+
+  const controls: Controls = []
   const state = 
     { player: createPlayer()
     , drones: getDrones()
     , room: { clan: Clan.Yellow, prev: null, role: Role.Bass }
     }
-
-
-  /** Parses controls and actions and resolves to a new state. */
-  const handleTick: HandleTick = (controls, state): State => {
-    state = updatePositions(state, controls)
-    return state
-  }
-
-
-  const tick = (time: DOMHighResTimeStamp) => {
-    const nextState = handleTick(controls, state)
-    updateStage(nextState, draw)
-    requestAnimationFrame(tick)
-  }
-
-
-  tick(0)
-
-  
+  go(controls, state, tick)
 }
 
 

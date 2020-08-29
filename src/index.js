@@ -22,7 +22,7 @@ var Clan;
     Clan[Clan["Red"] = 1] = "Red";
     Clan[Clan["Yellow"] = 2] = "Yellow";
 })(Clan || (Clan = {}));
-var controls = [];
+var CONTROLKEYS = [];
 // global constants
 var width = 900;
 var height = 900;
@@ -71,13 +71,14 @@ var moveRight = function (player, amt) {
     if (amt === void 0) { amt = 1; }
     return (__assign(__assign({}, player), { x: player.x += amt }));
 };
-// type PlayerControlMap =
-//   { [controlKey: string]: Modulate<PlayerControl> }
-var applyControl = function (player, controlKey) { return ({ ArrowRight: moveRight,
+var controlMap = function () { return ({ ArrowRight: moveRight,
     ArrowLeft: moveLeft
     // , ArrowDown: land
     // , ArrowUp: jump
-})[controlKey](player); };
+}); };
+var applyControl = function (player, controlKey) {
+    return controlMap()[controlKey](player);
+};
 function play() {
     var updatePositions = function (state, controls) {
         // state.drones.map(d => walk(d))
@@ -157,27 +158,21 @@ function play() {
             ctx.strokeRect(0, 0, 600, 600);
         };
     };
-    /** Grabs the rendering context to provide render callback. */
-    var setupCanvas = function () {
-        var canvas = window.document.querySelector("canvas");
-        canvas.width = 900;
-        canvas.height = 900;
-        var ctx = canvas.getContext('2d');
-        var handleDraw = function (d) {
-            ctx.beginPath();
-            d(ctx);
-            ctx.closePath();
-        };
-        var handleKeypress = function (e) {
-            var off = on(canvas, 'keydown', handleKeypress);
-        };
-        return handleDraw;
+    var addControlKey = function (key, controls) {
+        // @ts-ignore TS2339
+        return controls.includes(key) ? controls : controls.concat(key);
     };
-    var addControlKey = function (e, list) {
-        return (e.repeat === true)
-            ? list
-            : list.concat(e.key);
-        return list;
+    var removeControlKey = function (key, controls) {
+        return controls.filter(function (k) { return k !== key; });
+    };
+    var handleKeydown = function (e, controls) {
+        if (e.repeat === true)
+            return;
+        e.target.addEventListener('keyup', function (ev) {
+            if (e.key === e.key) {
+                removeControlKey(e.key, controls);
+            }
+        });
     };
     var getDrones = function (qty, drones) {
         if (qty === void 0) { qty = 4; }
@@ -192,21 +187,30 @@ function play() {
         ill(drawRoom(state));
         ill(drawNPCS(state));
     };
-    var draw = setupCanvas();
+    var tick = function (time, state, draw) {
+        var nextState = updatePositions(state, controls);
+        updateStage(nextState, draw);
+        requestAnimationFrame(function (t) { return tick(t, nextState, draw); });
+    };
+    /** Grabs the rendering context to provide render callback. */
+    var go = function (controls, state, tick) {
+        var canvas = window.document.querySelector("canvas");
+        canvas.width = 900;
+        canvas.height = 900;
+        var ctx = canvas.getContext('2d');
+        var draw = function (d) {
+            ctx.beginPath();
+            d(ctx);
+            ctx.closePath();
+        };
+        canvas.addEventListener('keydown', function (e) { return handleKeydown(e, controls); });
+        tick(0, state, draw);
+    };
+    var controls = [];
     var state = { player: createPlayer(),
         drones: getDrones(),
         room: { clan: Clan.Yellow, prev: null, role: Role.Bass }
     };
-    /** Parses controls and actions and resolves to a new state. */
-    var handleTick = function (controls, state) {
-        state = updatePositions(state, controls);
-        return state;
-    };
-    var tick = function (time) {
-        var nextState = handleTick(controls, state);
-        updateStage(nextState, draw);
-        requestAnimationFrame(tick);
-    };
-    tick(0);
+    go(controls, state, tick);
 }
 play();
