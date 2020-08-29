@@ -23,6 +23,9 @@ var Clan;
     Clan[Clan["Yellow"] = 2] = "Yellow";
 })(Clan || (Clan = {}));
 var controls = [];
+// global constants
+var width = 900;
+var height = 900;
 var aN = function (n) { return !isNaN(n); };
 var log = function () {
     var any = [];
@@ -31,12 +34,56 @@ var log = function () {
     }
     return any.map(function (a) { return console.log(a); });
 };
+var isNearWall = function (u, threshold) {
+    if (threshold === void 0) { threshold = 0.1; }
+    return (u.x <= width * threshold) && (u.y <= height * threshold);
+};
+var walk = function (u, step) {
+    if (step === void 0) { step = 1; }
+    var p = u.lastwalk ? 'x' : 'y';
+    u[p] = (Math.random() < 0.5) ? u[p] + 1 : u[p] - 1;
+    u.lastwalk = !u.lastwalk;
+    return u;
+};
+var off = function (el, name, fn) {
+    return el.removeEventListener(name, fn);
+};
+var on = function (el, name, fn) {
+    el.addEventListener(name, fn);
+    return function cleanup() { off(el, name, fn); };
+};
+var throttle = function () {
+    return setTimeout(function () { debugger; }, 2000);
+};
+var changePosition = function (prev, changes) {
+    return Object.keys(prev).reduce(function (next, key) {
+        var _a;
+        return (typeof changes[key] == 'undefined')
+            ? next
+            : __assign(__assign({}, next), (_a = {}, _a[key] = changes[key](prev[key]), _a));
+    }, {});
+};
+var moveLeft = function (player, amt) {
+    if (amt === void 0) { amt = 1; }
+    return (__assign(__assign({}, player), { x: player.x -= amt }));
+};
+var moveRight = function (player, amt) {
+    if (amt === void 0) { amt = 1; }
+    return (__assign(__assign({}, player), { x: player.x += amt }));
+};
+// type PlayerControlMap =
+//   { [controlKey: string]: Modulate<PlayerControl> }
+var applyControl = function (player, controlKey) { return ({ ArrowRight: moveRight,
+    ArrowLeft: moveLeft
+    // , ArrowDown: land
+    // , ArrowUp: jump
+})[controlKey](player); };
 function play() {
-    var width = 900;
-    var height = 900;
-    /** Parses controls and actions and resolves to a new state. */
-    var handleTick = function (controls, state) {
-        return state;
+    var updatePositions = function (state, controls) {
+        // state.drones.map(d => walk(d))
+        state.drones.map(walk);
+        var player = controls.reduce(applyControl, state.player);
+        return __assign(__assign({}, state), { player: player, drones: state.drones.map(walk) });
     };
     var createRoom = function (clan, prev) {
         return ({ clan: clan,
@@ -56,7 +103,8 @@ function play() {
     var createDrone = function () {
         return ({ x: 30,
             y: 23,
-            shield: 2
+            shield: 2,
+            lastwalk: false
         });
     };
     var getClanColor = function (clan) {
@@ -65,11 +113,13 @@ function play() {
     };
     var drawNPCS = function (state) {
         var color = getClanColor(state.room.clan);
+        var uw = 50;
+        var uh = 50;
         return function (ctx) {
-            state.drones.forEach(function (unit, i) {
-                var x = unit.x, y = unit.y;
+            state.drones.forEach(function (_a, i) {
+                var x = _a.x, y = _a.y;
                 ctx.fillStyle = color;
-                ctx.fillRect(i * 19, i * 31, 50 + (i * 2), 50 + (i * 2));
+                ctx.fillRect(x, y, x + uw, y + uh);
             });
         };
     };
@@ -94,7 +144,6 @@ function play() {
         var offsetCeiling = (height - doorHeight) / 3;
         // left door
         ctx.fillStyle = getClanColor(altClans[0]);
-        log(offsetCeiling + doorHeight);
         ctx.fillRect(offsetWall, offsetCeiling, offsetWall + doorWidth, offsetCeiling + doorHeight);
         // right door
         ctx.fillStyle = getClanColor(altClans[1]);
@@ -119,7 +168,16 @@ function play() {
             d(ctx);
             ctx.closePath();
         };
+        var handleKeypress = function (e) {
+            var off = on(canvas, 'keydown', handleKeypress);
+        };
         return handleDraw;
+    };
+    var addControlKey = function (e, list) {
+        return (e.repeat === true)
+            ? list
+            : list.concat(e.key);
+        return list;
     };
     var getDrones = function (qty, drones) {
         if (qty === void 0) { qty = 4; }
@@ -138,6 +196,11 @@ function play() {
     var state = { player: createPlayer(),
         drones: getDrones(),
         room: { clan: Clan.Yellow, prev: null, role: Role.Bass }
+    };
+    /** Parses controls and actions and resolves to a new state. */
+    var handleTick = function (controls, state) {
+        state = updatePositions(state, controls);
+        return state;
     };
     var tick = function (time) {
         var nextState = handleTick(controls, state);
