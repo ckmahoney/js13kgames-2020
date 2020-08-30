@@ -1,5 +1,5 @@
 [] Create a room generator
-  [] random floor tiles
+  [x] floor tiles
   [] with drones
   [] with doors
 [] Create the opening room selection ( Red, Yellow, or Blue bassline )

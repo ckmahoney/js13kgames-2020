@@ -56,6 +56,11 @@ type UnitPosition =
   }
 
 
+interface Game
+ { (): SideFX
+  controls: Controls }
+
+
 // type Peripherals =
 //   { keydown: any[]
 //   , click: 
@@ -79,7 +84,7 @@ interface Illustrate
 
 
 interface Setup
-  { (controlCache: Controls, state: State, tick: HandleTick): SideFX }
+  { (state: State, tick: HandleTick): SideFX }
 
 
 interface UpdateStage
@@ -91,7 +96,10 @@ interface Draw
 
 
 interface StatefulDraw
-  { (state: State): Draw }
+  { (state: State): Draw
+    color?: string
+    font?: string
+    text?: string }
 
 
 interface IsNearWall<T extends UnitPosition>
@@ -111,7 +119,7 @@ interface Modulate<T extends Object>
 
 
 
-const CONTROLKEYS: Controls = []
+let controls: Controls = []
 
 
 type Controls = string[]
@@ -166,8 +174,8 @@ const on = (el, name, fn) => {
 }
 
 
-const throttle = () => 
-  setTimeout(() => {debugger},2000)
+const throttle = (seconds = 2) => 
+  setTimeout(() => {debugger},seconds*1000)
 
 
 const changePosition = <T extends Object>(prev: T, changes: any): T  => {
@@ -201,14 +209,14 @@ const applyControl = (player, controlKey): Player =>
   controlMap()[controlKey](player)
 
 
-function play() {
- 
+const game: Game = () => {
   
-  const updatePositions = (state: State, controls: Controls): State => {
+  const updatePositions = (state: State): State => {
     // state.drones.map(d => walk(d))
     state.drones.map(walk)
 
-    let player = controls.reduce(applyControl,state.player)
+
+    let player = game.controls.reduce(applyControl,state.player)
 
     return {...state, player, drones: state.drones.map(walk)}
   }
@@ -275,6 +283,16 @@ function play() {
   }
 
 
+  const drawPlayer: StatefulDraw = (state): Draw => {
+    const color = drawPlayer.color || (drawPlayer.color = 'magenta')
+    const text = drawPlayer.text || (drawPlayer.text ='!*!')
+    return (ctx) => {
+      ctx.fillStyle = color
+      ctx.fillText(text, state.player.x, state.player.y);
+    }
+  }
+
+
   const drawTiles = (ctx): SideFX => {
     let tw = 80
     let th = 80
@@ -318,24 +336,38 @@ function play() {
   }
 
 
-  const addControlKey = (key: string, controls: Controls): Controls =>
+  interface ControlListener
+    { (key: string): Controls }
+
+
+  const addControlKey: ControlListener = (key) => {
     // @ts-ignore TS2339
-    controls.includes(key) ? controls : controls.concat(key)
+    return controls.includes(key) ? controls : controls.concat(key)
+  }
 
 
-  const removeControlKey = (key: string, controls: Controls): Controls => 
+  const removeControlKey: ControlListener = (key) => 
     controls.filter(k => k !== key)
 
 
-  const handleKeydown = (e: KeyboardEvent, controls: Controls): SideFX => {  
+  const handleKeydown = (e: KeyboardEvent): SideFX => {  
     if (e.repeat === true)
       return
 
-    (<HTMLCanvasElement>e.target).addEventListener('keyup', (ev) => {
-      if (e.key === e.key) {
-        removeControlKey(e.key, controls)
+    game.controls = game.controls.concat(e.key)
+
+    const remove = () => {
+      game.controls = game.controls.filter(k => k !== e.key)
+    }
+
+    const cleanup = (ev) => {
+      if (e.key === ev.key) {
+        remove()
+        window.removeEventListener('keyup', cleanup)
       }
-    })
+    }
+
+    window.addEventListener('keyup', cleanup)
   }
 
 
@@ -352,33 +384,51 @@ function play() {
     ill( (ctx) => ctx.clearRect(0,0,900,900) )
     ill( drawRoom(state) )
     ill( drawNPCS(state) )
+    ill( drawPlayer(state) )
+  }
+
+
+  interface UpdateListeners
+    { (state: State): Controls
+      prev?: Controls
+      listen?: (e: KeyboardEvent) => SideFX }
+
+
+  const updateListeners: UpdateListeners = (state) => {
+    if (typeof updateListeners.listen == 'function')
+      window.removeEventListener('keydown', updateListeners.listen)
+
+    updateListeners.listen = (e) => handleKeydown(e)
+    window.addEventListener('keydown', updateListeners.listen)
+    return updateListeners.prev || []
   }
 
 
   const tick: HandleTick = (time: DOMHighResTimeStamp, state, draw) => {
-    const nextState = updatePositions(state, controls)
-    updateStage(nextState, draw)
-    requestAnimationFrame((t) => tick(t, nextState, draw))
+    const nState = updatePositions(state)
+    updateListeners(state)
+    updateStage(nState, draw)
+    requestAnimationFrame((ntime) => tick(ntime, nState, draw))
   }
 
 
   /** Grabs the rendering context to provide render callback. */
-  const go: Setup = (controls, state, tick) => {
+  const go: Setup = (state, tick) => {
     const canvas = <HTMLCanvasElement> window.document.querySelector("canvas")
     canvas.width = 900
     canvas.height = 900
 
     const ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
+    ctx.font = '50px monospace'
     const draw: Illustrate = (d: Draw): SideFX  => {
       ctx.beginPath()
       d(ctx)
       ctx.closePath()
     }
 
-    canvas.addEventListener('keydown', (e) => handleKeydown(e, controls))
-
     tick(0, state, draw)
   }
+
 
   const controls: Controls = []
   const state = 
@@ -386,8 +436,9 @@ function play() {
     , drones: getDrones()
     , room: { clan: Clan.Yellow, prev: null, role: Role.Bass }
     }
-  go(controls, state, tick)
+
+  go(state, tick)
 }
 
-
-play()
+game.controls = []
+game()

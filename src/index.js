@@ -22,7 +22,7 @@ var Clan;
     Clan[Clan["Red"] = 1] = "Red";
     Clan[Clan["Yellow"] = 2] = "Yellow";
 })(Clan || (Clan = {}));
-var CONTROLKEYS = [];
+var controls = [];
 // global constants
 var width = 900;
 var height = 900;
@@ -52,8 +52,9 @@ var on = function (el, name, fn) {
     el.addEventListener(name, fn);
     return function cleanup() { off(el, name, fn); };
 };
-var throttle = function () {
-    return setTimeout(function () { debugger; }, 2000);
+var throttle = function (seconds) {
+    if (seconds === void 0) { seconds = 2; }
+    return setTimeout(function () { debugger; }, seconds * 1000);
 };
 var changePosition = function (prev, changes) {
     return Object.keys(prev).reduce(function (next, key) {
@@ -79,11 +80,11 @@ var controlMap = function () { return ({ ArrowRight: moveRight,
 var applyControl = function (player, controlKey) {
     return controlMap()[controlKey](player);
 };
-function play() {
-    var updatePositions = function (state, controls) {
+var game = function () {
+    var updatePositions = function (state) {
         // state.drones.map(d => walk(d))
         state.drones.map(walk);
-        var player = controls.reduce(applyControl, state.player);
+        var player = game.controls.reduce(applyControl, state.player);
         return __assign(__assign({}, state), { player: player, drones: state.drones.map(walk) });
     };
     var createRoom = function (clan, prev) {
@@ -124,6 +125,14 @@ function play() {
             });
         };
     };
+    var drawPlayer = function (state) {
+        var color = drawPlayer.color || (drawPlayer.color = 'magenta');
+        var text = drawPlayer.text || (drawPlayer.text = '!*!');
+        return function (ctx) {
+            ctx.fillStyle = color;
+            ctx.fillText(text, state.player.x, state.player.y);
+        };
+    };
     var drawTiles = function (ctx) {
         var tw = 80;
         var th = 80;
@@ -158,21 +167,27 @@ function play() {
             ctx.strokeRect(0, 0, 600, 600);
         };
     };
-    var addControlKey = function (key, controls) {
+    var addControlKey = function (key) {
         // @ts-ignore TS2339
         return controls.includes(key) ? controls : controls.concat(key);
     };
-    var removeControlKey = function (key, controls) {
+    var removeControlKey = function (key) {
         return controls.filter(function (k) { return k !== key; });
     };
-    var handleKeydown = function (e, controls) {
+    var handleKeydown = function (e) {
         if (e.repeat === true)
             return;
-        e.target.addEventListener('keyup', function (ev) {
-            if (e.key === e.key) {
-                removeControlKey(e.key, controls);
+        game.controls = game.controls.concat(e.key);
+        var remove = function () {
+            game.controls = game.controls.filter(function (k) { return k !== e.key; });
+        };
+        var cleanup = function (ev) {
+            if (e.key === ev.key) {
+                remove();
+                window.removeEventListener('keyup', cleanup);
             }
-        });
+        };
+        window.addEventListener('keyup', cleanup);
     };
     var getDrones = function (qty, drones) {
         if (qty === void 0) { qty = 4; }
@@ -186,24 +201,33 @@ function play() {
         ill(function (ctx) { return ctx.clearRect(0, 0, 900, 900); });
         ill(drawRoom(state));
         ill(drawNPCS(state));
+        ill(drawPlayer(state));
+    };
+    var updateListeners = function (state) {
+        if (typeof updateListeners.listen == 'function')
+            window.removeEventListener('keydown', updateListeners.listen);
+        updateListeners.listen = function (e) { return handleKeydown(e); };
+        window.addEventListener('keydown', updateListeners.listen);
+        return updateListeners.prev || [];
     };
     var tick = function (time, state, draw) {
-        var nextState = updatePositions(state, controls);
-        updateStage(nextState, draw);
-        requestAnimationFrame(function (t) { return tick(t, nextState, draw); });
+        var nState = updatePositions(state);
+        updateListeners(state);
+        updateStage(nState, draw);
+        requestAnimationFrame(function (ntime) { return tick(ntime, nState, draw); });
     };
     /** Grabs the rendering context to provide render callback. */
-    var go = function (controls, state, tick) {
+    var go = function (state, tick) {
         var canvas = window.document.querySelector("canvas");
         canvas.width = 900;
         canvas.height = 900;
         var ctx = canvas.getContext('2d');
+        ctx.font = '50px monospace';
         var draw = function (d) {
             ctx.beginPath();
             d(ctx);
             ctx.closePath();
         };
-        canvas.addEventListener('keydown', function (e) { return handleKeydown(e, controls); });
         tick(0, state, draw);
     };
     var controls = [];
@@ -211,6 +235,7 @@ function play() {
         drones: getDrones(),
         room: { clan: Clan.Yellow, prev: null, role: Role.Bass }
     };
-    go(controls, state, tick);
-}
-play();
+    go(state, tick);
+};
+game.controls = [];
+game();
