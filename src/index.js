@@ -24,8 +24,8 @@ var Clan;
 })(Clan || (Clan = {}));
 var controls = [];
 // global constants
-var width = 900;
-var height = 900;
+var canvasWidth = 800;
+var canvasHeight = 450;
 var aN = function (n) { return !isNaN(n); };
 var log = function () {
     var any = [];
@@ -36,7 +36,7 @@ var log = function () {
 };
 var isNearWall = function (u, threshold) {
     if (threshold === void 0) { threshold = 0.1; }
-    return (u.x <= width * threshold) && (u.y <= height * threshold);
+    return (u.x <= canvasWidth * threshold) && (u.y <= canvasHeight * threshold);
 };
 var walk = function (u, step) {
     if (step === void 0) { step = 1; }
@@ -72,11 +72,15 @@ var moveRight = function (player, amt) {
     if (amt === void 0) { amt = 1; }
     return (__assign(__assign({}, player), { x: player.x += amt }));
 };
-var controlMap = function () { return ({ ArrowRight: moveRight,
-    ArrowLeft: moveLeft
-    // , ArrowDown: land
-    // , ArrowUp: jump
-}); };
+// const jump = <U extends UnitPosition>(player: U) =>
+//   ()
+var controlMap = function () {
+    return ({ ArrowRight: moveRight,
+        ArrowLeft: moveLeft
+        // , ArrowDown: land
+        // , ArrowUp: jump
+    });
+};
 var applyControl = function (player, controlKey) {
     return controlMap()[controlKey](player);
 };
@@ -100,7 +104,17 @@ var game = function () {
         };
     };
     var createPlayer = function () {
-        return __assign(__assign({ x: 10, y: 30 }, (createShield())), { strength: 100, speed: 100, luck: 100 });
+        return ({ shield: { bass: 0,
+                tenor: 0,
+                alto: 0,
+                soprano: 0
+            },
+            x: 50,
+            y: canvasHeight - 230 - 10,
+            strength: 100,
+            speed: 100,
+            luck: 100
+        });
     };
     var createDrone = function () {
         return ({ x: 30,
@@ -128,6 +142,7 @@ var game = function () {
     var drawPlayer = function (state) {
         var color = drawPlayer.color || (drawPlayer.color = 'magenta');
         var text = drawPlayer.text || (drawPlayer.text = '!*!');
+        log(state.player.x, state.player.y);
         return function (ctx) {
             ctx.fillStyle = color;
             ctx.fillText(text, state.player.x, state.player.y);
@@ -136,8 +151,8 @@ var game = function () {
     var drawTiles = function (ctx) {
         var tw = 80;
         var th = 80;
-        var nx = width / tw;
-        var ny = height / th;
+        var nx = canvasWidth / tw;
+        var ny = canvasHeight / th;
         ctx.fillStyle = 'grey';
         ctx.stokeStyle = 'cyan';
         for (var i = 0; i < nx; i++)
@@ -151,13 +166,13 @@ var game = function () {
         var doorHeight = 40;
         var offsetWall = 0;
         var doorWidth = 20;
-        var offsetCeiling = (height - doorHeight) / 3;
+        var offsetCeiling = (canvasHeight - doorHeight) / 3;
         // left door
         ctx.fillStyle = getClanColor(altClans[0]);
         ctx.fillRect(offsetWall, offsetCeiling, offsetWall + doorWidth, offsetCeiling + doorHeight);
         // right door
         ctx.fillStyle = getClanColor(altClans[1]);
-        ctx.fillRect(width - offsetWall - doorWidth, offsetCeiling, width - offsetWall + doorWidth, offsetCeiling + doorHeight);
+        ctx.fillRect(canvasWidth - offsetWall - doorWidth, offsetCeiling, canvasWidth - offsetWall + doorWidth, offsetCeiling + doorHeight);
     };
     var drawRoom = function (state) {
         return function (ctx) {
@@ -219,8 +234,8 @@ var game = function () {
     /** Grabs the rendering context to provide render callback. */
     var go = function (state, tick) {
         var canvas = window.document.querySelector("canvas");
-        canvas.width = 900;
-        canvas.height = 900;
+        canvas.width = canvasWidth / 2;
+        canvas.height = canvasHeight / 2;
         var ctx = canvas.getContext('2d');
         ctx.font = '50px monospace';
         var draw = function (d) {

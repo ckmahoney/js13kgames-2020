@@ -131,7 +131,7 @@ type Empty = null | undefined
 type SideFX = void
 
 
-type Player = UnitPosition & Stats
+type Player = UnitPosition & Stats & { shield: Shield }
 
 
 type Drone = UnitPosition &
@@ -140,8 +140,8 @@ type Drone = UnitPosition &
 
 // global constants
 
-const width = 900
-const height = 900
+const canvasWidth = 800
+const canvasHeight = 450
 
 
 const aN: (a:any) => boolean = n => !isNaN(n)
@@ -152,7 +152,7 @@ const log = (...any: any[]): SideFX =>
 
 
 const isNearWall: IsNearWall<UnitPosition> = (u, threshold = 0.1) => {
-  return (u.x <= width * threshold) && (u.y <= height * threshold)
+  return (u.x <= canvasWidth * threshold) && (u.y <= canvasHeight * threshold)
 }
 
 
@@ -187,18 +187,20 @@ const changePosition = <T extends Object>(prev: T, changes: any): T  => {
 }
 
 
-const moveLeft = <U extends UnitPosition>(player: U , amt=1): U => (
-  {...player, x: player.x -= amt}
-)
+const moveLeft = <U extends UnitPosition>(player: U , amt=1): U => 
+  ({...player, x: player.x -= amt})
 
 
-const moveRight = <U extends UnitPosition>(player: U, amt=1): U => (
-  {...player, x: player.x += amt}
-)
+const moveRight = <U extends UnitPosition>(player: U, amt=1): U => 
+  ({...player, x: player.x += amt})
 
 
-const controlMap = () => (
-  { ArrowRight: moveRight
+// const jump = <U extends UnitPosition>(player: U) =>
+//   ()
+
+
+const controlMap = () => 
+  ({ ArrowRight: moveRight
   , ArrowLeft: moveLeft
   // , ArrowDown: land
   // , ArrowUp: jump
@@ -242,14 +244,19 @@ const game: Game = () => {
 
 
   const createPlayer = (): Player => {
-    return {
-      x: 10,
-      y: 30,
-      ...(createShield()),
-      strength: 100,
-      speed: 100,
-      luck: 100
-    }
+    return (
+    { shield: 
+      { bass: 0
+      , tenor: 0
+      , alto: 0
+      , soprano: 0
+      }
+    , x: 50
+    , y: canvasHeight - 230 - 10
+    , strength: 100
+    , speed: 100
+    , luck: 100
+    })
   }
 
 
@@ -286,6 +293,7 @@ const game: Game = () => {
   const drawPlayer: StatefulDraw = (state): Draw => {
     const color = drawPlayer.color || (drawPlayer.color = 'magenta')
     const text = drawPlayer.text || (drawPlayer.text ='!*!')
+    log(state.player.x, state.player.y)
     return (ctx) => {
       ctx.fillStyle = color
       ctx.fillText(text, state.player.x, state.player.y);
@@ -296,8 +304,8 @@ const game: Game = () => {
   const drawTiles = (ctx): SideFX => {
     let tw = 80
     let th = 80
-    let nx = width / tw
-    let ny = height / th
+    let nx = canvasWidth / tw
+    let ny = canvasHeight / th
     ctx.fillStyle = 'grey'
     ctx.stokeStyle = 'cyan'
 
@@ -314,7 +322,7 @@ const game: Game = () => {
     let doorHeight = 40
     let offsetWall = 0
     let doorWidth = 20
-    let offsetCeiling = (height-doorHeight)/3
+    let offsetCeiling = (canvasHeight-doorHeight)/3
 
     // left door
     ctx.fillStyle = getClanColor(altClans[0])
@@ -322,7 +330,7 @@ const game: Game = () => {
 
     // right door
     ctx.fillStyle = getClanColor(altClans[1])
-    ctx.fillRect(width-offsetWall-doorWidth, offsetCeiling, width-offsetWall+doorWidth, offsetCeiling + doorHeight)
+    ctx.fillRect(canvasWidth-offsetWall-doorWidth, offsetCeiling, canvasWidth-offsetWall+doorWidth, offsetCeiling + doorHeight)
   }
 
 
@@ -415,8 +423,8 @@ const game: Game = () => {
   /** Grabs the rendering context to provide render callback. */
   const go: Setup = (state, tick) => {
     const canvas = <HTMLCanvasElement> window.document.querySelector("canvas")
-    canvas.width = 900
-    canvas.height = 900
+    canvas.width = canvasWidth/2
+    canvas.height = canvasHeight/2
 
     const ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
     ctx.font = '50px monospace'
