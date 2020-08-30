@@ -245,6 +245,9 @@ var game = function () {
     };
     var updateStage = function (time, state, illustrate) {
         illustrate(function (ctx) { return ctx.clearRect(0, 0, 900, 900); });
+        illustrate(openingRoom(time, state));
+    };
+    var stage = function (time, state, illustrate) {
         illustrate(drawRoom(time, state));
         illustrate(drawNPCS(time, state));
         illustrate(drawPlayer(time, state));
@@ -280,10 +283,21 @@ var game = function () {
     var state = { player: createPlayer(),
         drones: getDrones(),
         fx: [], room: { clan: null, role: null }, level: 0 };
-    var openingRoom = function (ctx) {
-        var radius = 100;
-        Object.keys(Clan).map(function (a) { return parseInt(a); });
-        // ctx.arc(x * i, 200, radius, 0, 2 * Math.PI);    
+    var openingRoom = function (time, state) {
+        var radius = 100 + (100 * Math.sin(time));
+        var clans = Object.keys(Clan).map(function (a) { return parseInt(a); });
+        var containerWidth = canvasWidth / 2;
+        var offsetWall = canvasWidth / 3;
+        var offsetCeiling = canvasHeight / 3;
+        return function (ctx) {
+            ctx.strokeStyle = 'white';
+            clans.map(function (c, i, list) {
+                var elWidth = containerWidth / list.length;
+                ctx.fillStyle = getClanColor(c);
+                ctx.arc(offsetWall + (elWidth * i), offsetCeiling, radius, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+        };
     };
     /** Create a room with new values compared to a previous room. */
     var nextRoom = function (pClan, pRole) {

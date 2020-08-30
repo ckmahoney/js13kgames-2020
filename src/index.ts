@@ -447,6 +447,11 @@ const game: Game = () => {
 
   const updateStage: UpdateStage = (time, state, illustrate) => {
     illustrate( (ctx) => ctx.clearRect(0,0,900,900) )
+    illustrate( openingRoom(time, state) )
+  }
+
+
+  const stage = (time, state, illustrate) => {
     illustrate( drawRoom(time, state) )
     illustrate( drawNPCS(time, state) )
     illustrate( drawPlayer(time, state) )
@@ -499,11 +504,22 @@ const game: Game = () => {
     }
 
 
-  const openingRoom = (ctx: CanvasRenderingContext2D) => {
-    let radius = 100
-    Object.keys(Clan).map(a => parseInt(a))
+  const openingRoom = (time, state) => {
+    let radius = 100 + (100 * Math.sin(time))
+    const clans = Object.keys(Clan).map(a => parseInt(a))
+    const containerWidth = canvasWidth/2
+    const offsetWall = canvasWidth/3
+    const offsetCeiling = canvasHeight/3
 
-    // ctx.arc(x * i, 200, radius, 0, 2 * Math.PI);    
+    return (ctx) => {
+      ctx.strokeStyle = 'white'
+      clans.map((c, i, list) => {
+        const elWidth = containerWidth/list.length
+        ctx.fillStyle = getClanColor(c)
+        ctx.arc(offsetWall + (elWidth * i), offsetCeiling, radius, 0, 2 * Math.PI)
+        ctx.fill()
+      })
+    }
   }
 
 
