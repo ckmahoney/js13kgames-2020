@@ -244,8 +244,8 @@ var game = function () {
         return getDrones(qty - 1, drones);
     };
     var updateStage = function (time, state, illustrate) {
-        illustrate(function (ctx) { return ctx.clearRect(0, 0, 900, 900); });
-        illustrate(openingRoom(time, state));
+        illustrate(function (ctx) { return ctx.clearRect(0, 0, canvasWidth, canvasHeight); });
+        openingRoom(time, state, illustrate);
     };
     var stage = function (time, state, illustrate) {
         illustrate(drawRoom(time, state));
@@ -279,25 +279,55 @@ var game = function () {
         };
         tick(0, state, draw);
     };
+    var abs = Math.abs, sin = Math.sin, cos = Math.cos, pow = Math.pow;
+    var tiny = function (n) { return n * pow(10, -3); };
     var controls = [];
     var state = { player: createPlayer(),
         drones: getDrones(),
         fx: [], room: { clan: null, role: null }, level: 0 };
-    var openingRoom = function (time, state) {
-        var radius = 100 + (100 * Math.sin(time));
-        var clans = Object.keys(Clan).map(function (a) { return parseInt(a); });
+    var openingRoom = function (time, state, illustrate) {
+        var clans = Object.keys(Clan).map(function (a) { return parseInt(a); }).filter(aN);
+        var containerWidth = canvasWidth * 2 / 3;
+        var offsetWall = canvasWidth / 3;
+        var offsetCeiling = canvasHeight / 3;
+        var elWidth = containerWidth / clans.length;
+        illustrate(function (ctx) { return drawTiles(time, ctx); });
+        var _loop_1 = function (i) {
+            illustrate(function (ctx) {
+                var radius = 10 * abs(sin((1 + i) * tiny(time)));
+                var x = offsetWall + (i * elWidth);
+                var y = offsetCeiling; // * ((Math.cos(time * (i*0.25)/100)))
+                ctx.fillStyle = ctx.strokeStyle = getClanColor(i);
+                ctx.arc(x, y, radius, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.stroke();
+            });
+        };
+        for (var i = 0; i < clans.length; i++) {
+            _loop_1(i);
+        }
+    };
+    // saved preset for showing two elements orbiting around a central unit
+    var orbit = function (time, state, illustrate) {
+        var radius = 100;
+        var clans = Object.keys(Clan).map(function (a) { return parseInt(a); }).filter(aN);
         var containerWidth = canvasWidth / 2;
         var offsetWall = canvasWidth / 3;
         var offsetCeiling = canvasHeight / 3;
-        return function (ctx) {
-            ctx.strokeStyle = 'white';
-            clans.map(function (c, i, list) {
-                var elWidth = containerWidth / list.length;
-                ctx.fillStyle = getClanColor(c);
-                ctx.arc(offsetWall + (elWidth * i), offsetCeiling, radius, 0, 2 * Math.PI);
+        var elWidth = containerWidth / clans.length;
+        var _loop_2 = function (i) {
+            illustrate(function (ctx) {
+                var y = offsetWall + (elWidth * i) * ((Math.cos(time * (i * 0.25) / 100)));
+                var x = canvasHeight * (Math.abs(Math.sin(time * 0.125 / 1000)));
+                ctx.fillStyle = ctx.strokeStyle = getClanColor(i);
+                ctx.arc(x, y, radius, 0, 2 * Math.PI);
                 ctx.fill();
+                ctx.stroke();
             });
         };
+        for (var i = 0; i < clans.length; i++) {
+            _loop_2(i);
+        }
     };
     /** Create a room with new values compared to a previous room. */
     var nextRoom = function (pClan, pRole) {

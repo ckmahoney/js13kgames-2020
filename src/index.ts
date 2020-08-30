@@ -446,8 +446,8 @@ const game: Game = () => {
 
 
   const updateStage: UpdateStage = (time, state, illustrate) => {
-    illustrate( (ctx) => ctx.clearRect(0,0,900,900) )
-    illustrate( openingRoom(time, state) )
+    illustrate( (ctx) => ctx.clearRect(0,0, canvasWidth, canvasHeight))
+    openingRoom(time, state, illustrate )
   }
 
 
@@ -494,6 +494,8 @@ const game: Game = () => {
   }
 
 
+  const { abs, sin, cos, pow } = Math
+  const tiny = (n) => n * pow(10,-3)
   const controls: Controls = []
   const state: State = 
     { player: createPlayer()
@@ -504,21 +506,46 @@ const game: Game = () => {
     }
 
 
-  const openingRoom = (time, state) => {
-    let radius = 100 + (100 * Math.sin(time))
-    const clans = Object.keys(Clan).map(a => parseInt(a))
+  const openingRoom = (time, state, illustrate) => {
+    const clans = Object.keys(Clan).map(a => parseInt(a)).filter(aN)
+    const containerWidth = canvasWidth*2/3
+    const offsetWall = canvasWidth/3
+    const offsetCeiling = canvasHeight/3
+    const elWidth = containerWidth/clans.length
+    
+    illustrate((ctx) => drawTiles(time, ctx))
+    for( let i = 0; i < clans.length; i++) {
+      illustrate((ctx) => {
+        let radius = 10 * abs(sin((1+i)*tiny(time)))
+        let x = offsetWall + (i*elWidth)
+        let y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
+        ctx.fillStyle = ctx.strokeStyle = getClanColor(i)
+        ctx.arc(x, y, radius, 0, 2 * Math.PI)
+        ctx.fill()
+        ctx.stroke()
+      } )
+    }
+  }
+
+
+  // saved preset for showing two elements orbiting around a central unit
+  const orbit = (time,state,illustrate) => {
+    let radius = 100 
+    const clans = Object.keys(Clan).map(a => parseInt(a)).filter(aN)
     const containerWidth = canvasWidth/2
     const offsetWall = canvasWidth/3
     const offsetCeiling = canvasHeight/3
+    const elWidth = containerWidth/clans.length
 
-    return (ctx) => {
-      ctx.strokeStyle = 'white'
-      clans.map((c, i, list) => {
-        const elWidth = containerWidth/list.length
-        ctx.fillStyle = getClanColor(c)
-        ctx.arc(offsetWall + (elWidth * i), offsetCeiling, radius, 0, 2 * Math.PI)
+    for( let i = 0; i < clans.length; i++) {
+      illustrate( (ctx) => {
+        let y = offsetWall + (elWidth * i) * ((Math.cos(time * (i*0.25)/100)))
+        let x = canvasHeight * (Math.abs(Math.sin(time * 0.125/1000)))
+        ctx.fillStyle = ctx.strokeStyle = getClanColor(i)
+        ctx.arc(x, y, radius, 0, 2 * Math.PI)
         ctx.fill()
-      })
+        ctx.stroke()
+      } )
     }
   }
 
