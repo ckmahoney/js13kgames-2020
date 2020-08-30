@@ -143,6 +143,9 @@ type Drone = UnitPosition &
 const canvasWidth = 800
 const canvasHeight = 450
 
+const playerHeight = 80
+const playerWidth = 80
+
 
 const aN: (a:any) => boolean = n => !isNaN(n)
 
@@ -187,40 +190,48 @@ const changePosition = <T extends Object>(prev: T, changes: any): T  => {
 }
 
 
-const moveLeft = <U extends UnitPosition>(player: U , amt=1): U => 
-  ({...player, x: player.x -= amt})
+const moveLeft = <U extends UnitPosition>(u: U , amt=3): U => 
+  ({...u, x: u.x > 0 ? u.x-= amt : 0})
 
 
-const moveRight = <U extends UnitPosition>(player: U, amt=1): U => 
-  ({...player, x: player.x += amt})
+const moveRight = <U extends UnitPosition>(u: U, amt=3): U => 
+  ({...u, x: u.x < (canvasWidth - playerWidth) ? u.x += amt : (canvasWidth - playerWidth)})
 
 
-// const jump = <U extends UnitPosition>(player: U) =>
-//   ()
+const moveUp = <U extends UnitPosition>(u: U, amt=3): U  => 
+  ({...u, y: u.y >= (0) ? u.y -= amt : playerHeight})
+
+
+const moveDown = <U extends UnitPosition>(u: U, amt=3): U  => 
+  ({...u, y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight)})
 
 
 const controlMap = () => 
   ({ ArrowRight: moveRight
   , ArrowLeft: moveLeft
-  // , ArrowDown: land
-  // , ArrowUp: jump
+  , ArrowDown: moveDown
+  , ArrowUp: moveUp
   })
 
 
-const applyControl = (player, controlKey): Player => 
-  controlMap()[controlKey](player)
+const applyControl = (player, controlKey): Player => {
+  let map = controlMap()
+  // @ts-ignore property includes does not exist on type string[]
+  if (! (Object.keys(map).includes(controlKey)))
+    return player
+
+  return map[controlKey](player)
+}
 
 
 const game: Game = () => {
   
   const updatePositions = (state: State): State => {
-    // state.drones.map(d => walk(d))
-    state.drones.map(walk)
-
-
-    let player = game.controls.reduce(applyControl,state.player)
-
-    return {...state, player, drones: state.drones.map(walk)}
+    return (
+      {...state
+      , player: game.controls.reduce(applyControl,state.player)
+      , drones: state.drones.map(walk)
+      })
   }
 
   
@@ -262,8 +273,8 @@ const game: Game = () => {
 
   const createDrone = (): Drone => {
     return (
-      { x: 30
-      , y:23
+      { x: Math.random() * canvasWidth
+      , y: Math.random() * canvasHeight
       , shield: 2
       , lastwalk: false
       } )
@@ -277,14 +288,27 @@ const game: Game = () => {
     })[clan]
 
 
+  const getClanText = (clan: Clan): string => (
+    { [Clan.Red]: '+++'
+    , [Clan.Blue]: '###'
+    , [Clan.Yellow]: '///'
+    })[clan]
+
+  
+  const getClanAttributes = (clan: Clan) => (
+    { color: getClanColor(clan)
+    , text: getClanText(clan)
+    })
+
+
   const drawNPCS: StatefulDraw = (state): Draw => {
-    const color = getClanColor(state.room.clan)
+    const {color, text} = getClanAttributes(state.room.clan)
     let uw = 50
     let uh = 50
     return (ctx) => {
       state.drones.forEach( ({x,y},i) => {
         ctx.fillStyle = color
-        ctx.fillRect(x, y, x+uw, y+uh)  
+        ctx.fillText(text, x, y)  
       } )
     }
   }
@@ -293,7 +317,6 @@ const game: Game = () => {
   const drawPlayer: StatefulDraw = (state): Draw => {
     const color = drawPlayer.color || (drawPlayer.color = 'magenta')
     const text = drawPlayer.text || (drawPlayer.text ='!*!')
-    log(state.player.x, state.player.y)
     return (ctx) => {
       ctx.fillStyle = color
       ctx.fillText(text, state.player.x, state.player.y);
@@ -423,8 +446,8 @@ const game: Game = () => {
   /** Grabs the rendering context to provide render callback. */
   const go: Setup = (state, tick) => {
     const canvas = <HTMLCanvasElement> window.document.querySelector("canvas")
-    canvas.width = canvasWidth/2
-    canvas.height = canvasHeight/2
+    canvas.width = canvasWidth
+    canvas.height = canvasHeight
 
     const ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
     ctx.font = '50px monospace'

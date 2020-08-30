@@ -26,6 +26,8 @@ var controls = [];
 // global constants
 var canvasWidth = 800;
 var canvasHeight = 450;
+var playerHeight = 80;
+var playerWidth = 80;
 var aN = function (n) { return !isNaN(n); };
 var log = function () {
     var any = [];
@@ -64,32 +66,39 @@ var changePosition = function (prev, changes) {
             : __assign(__assign({}, next), (_a = {}, _a[key] = changes[key](prev[key]), _a));
     }, {});
 };
-var moveLeft = function (player, amt) {
-    if (amt === void 0) { amt = 1; }
-    return (__assign(__assign({}, player), { x: player.x -= amt }));
+var moveLeft = function (u, amt) {
+    if (amt === void 0) { amt = 3; }
+    return (__assign(__assign({}, u), { x: u.x > 0 ? u.x -= amt : 0 }));
 };
-var moveRight = function (player, amt) {
-    if (amt === void 0) { amt = 1; }
-    return (__assign(__assign({}, player), { x: player.x += amt }));
+var moveRight = function (u, amt) {
+    if (amt === void 0) { amt = 3; }
+    return (__assign(__assign({}, u), { x: u.x < (canvasWidth - playerWidth) ? u.x += amt : (canvasWidth - playerWidth) }));
 };
-// const jump = <U extends UnitPosition>(player: U) =>
-//   ()
+var moveUp = function (u, amt) {
+    if (amt === void 0) { amt = 3; }
+    return (__assign(__assign({}, u), { y: u.y >= (0) ? u.y -= amt : playerHeight }));
+};
+var moveDown = function (u, amt) {
+    if (amt === void 0) { amt = 3; }
+    return (__assign(__assign({}, u), { y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight) }));
+};
 var controlMap = function () {
     return ({ ArrowRight: moveRight,
-        ArrowLeft: moveLeft
-        // , ArrowDown: land
-        // , ArrowUp: jump
+        ArrowLeft: moveLeft,
+        ArrowDown: moveDown,
+        ArrowUp: moveUp
     });
 };
 var applyControl = function (player, controlKey) {
-    return controlMap()[controlKey](player);
+    var map = controlMap();
+    // @ts-ignore property includes does not exist on type string[]
+    if (!(Object.keys(map).includes(controlKey)))
+        return player;
+    return map[controlKey](player);
 };
 var game = function () {
     var updatePositions = function (state) {
-        // state.drones.map(d => walk(d))
-        state.drones.map(walk);
-        var player = game.controls.reduce(applyControl, state.player);
-        return __assign(__assign({}, state), { player: player, drones: state.drones.map(walk) });
+        return (__assign(__assign({}, state), { player: game.controls.reduce(applyControl, state.player), drones: state.drones.map(walk) }));
     };
     var createRoom = function (clan, prev) {
         return ({ clan: clan,
@@ -117,8 +126,8 @@ var game = function () {
         });
     };
     var createDrone = function () {
-        return ({ x: 30,
-            y: 23,
+        return ({ x: Math.random() * canvasWidth,
+            y: Math.random() * canvasHeight,
             shield: 2,
             lastwalk: false
         });
@@ -127,22 +136,28 @@ var game = function () {
         var _a;
         return (_a = {}, _a[Clan.Red] = 'red', _a[Clan.Blue] = 'blue', _a[Clan.Yellow] = 'yellow', _a)[clan];
     };
+    var getClanText = function (clan) {
+        var _a;
+        return (_a = {}, _a[Clan.Red] = '+++', _a[Clan.Blue] = '###', _a[Clan.Yellow] = '///', _a)[clan];
+    };
+    var getClanAttributes = function (clan) { return ({ color: getClanColor(clan),
+        text: getClanText(clan)
+    }); };
     var drawNPCS = function (state) {
-        var color = getClanColor(state.room.clan);
+        var _a = getClanAttributes(state.room.clan), color = _a.color, text = _a.text;
         var uw = 50;
         var uh = 50;
         return function (ctx) {
             state.drones.forEach(function (_a, i) {
                 var x = _a.x, y = _a.y;
                 ctx.fillStyle = color;
-                ctx.fillRect(x, y, x + uw, y + uh);
+                ctx.fillText(text, x, y);
             });
         };
     };
     var drawPlayer = function (state) {
         var color = drawPlayer.color || (drawPlayer.color = 'magenta');
         var text = drawPlayer.text || (drawPlayer.text = '!*!');
-        log(state.player.x, state.player.y);
         return function (ctx) {
             ctx.fillStyle = color;
             ctx.fillText(text, state.player.x, state.player.y);
@@ -234,8 +249,8 @@ var game = function () {
     /** Grabs the rendering context to provide render callback. */
     var go = function (state, tick) {
         var canvas = window.document.querySelector("canvas");
-        canvas.width = canvasWidth / 2;
-        canvas.height = canvasHeight / 2;
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
         var ctx = canvas.getContext('2d');
         ctx.font = '50px monospace';
         var draw = function (d) {
