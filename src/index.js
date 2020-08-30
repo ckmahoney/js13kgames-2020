@@ -22,7 +22,6 @@ var Clan;
     Clan[Clan["Red"] = 1] = "Red";
     Clan[Clan["Yellow"] = 2] = "Yellow";
 })(Clan || (Clan = {}));
-var controls = [];
 // global constants
 var canvasWidth = 800;
 var canvasHeight = 450;
@@ -36,6 +35,9 @@ var log = function () {
     }
     return any.map(function (a) { return console.log(a); });
 };
+var coinToss = function () {
+    return (Math.random() < 0.5);
+};
 var isNearWall = function (u, threshold) {
     if (threshold === void 0) { threshold = 0.1; }
     return (u.x <= canvasWidth * threshold) && (u.y <= canvasHeight * threshold);
@@ -43,7 +45,7 @@ var isNearWall = function (u, threshold) {
 var walk = function (u, step) {
     if (step === void 0) { step = 1; }
     var p = u.lastwalk ? 'x' : 'y';
-    u[p] = (Math.random() < 0.5) ? u[p] + 1 : u[p] - 1;
+    u[p] = coinToss() ? u[p] + 1 : u[p] - 1;
     u.lastwalk = !u.lastwalk;
     return u;
 };
@@ -82,28 +84,41 @@ var moveDown = function (u, amt) {
     if (amt === void 0) { amt = 3; }
     return (__assign(__assign({}, u), { y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight) }));
 };
-var controlMap = function () {
-    return ({ ArrowRight: moveRight,
-        ArrowLeft: moveLeft,
-        ArrowDown: moveDown,
-        ArrowUp: moveUp
-    });
+var fire = function (time, state) {
+    var player = state.player, fx = state.fx;
+    var origin = { x: player.x,
+        y: player.y
+    };
+    return (__assign(__assign({}, state), { fx: fx.concat({ type: 'attack', origin: origin }) }));
 };
-var applyControl = function (player, controlKey) {
-    var map = controlMap();
+var motionControls = function () { return ({ ArrowRight: moveRight,
+    ArrowLeft: moveLeft,
+    ArrowDown: moveDown,
+    ArrowUp: moveUp
+}); };
+var actionControls = function () { return ({ f: fire
+}); };
+var applyMotion = function (player, controlKey) {
+    var map = motionControls();
     // @ts-ignore property includes does not exist on type string[]
     if (!(Object.keys(map).includes(controlKey)))
         return player;
     return map[controlKey](player);
 };
+var applyActions = function (state, controlKey) {
+    var map = actionControls();
+    // @ts-ignore property includes does not exist on type string[]
+    if (!(Object.keys(map).includes(controlKey)))
+        return state;
+    return map[controlKey](state);
+};
 var game = function () {
-    var updatePositions = function (state) {
-        return (__assign(__assign({}, state), { player: game.controls.reduce(applyControl, state.player), drones: state.drones.map(walk) }));
+    var applyControls = function (time, state) {
+        return (__assign(__assign({}, state), { player: game.controls.reduce(applyMotion, state.player), fx: state.fx.reduce(applyActions, state.fx), drones: state.drones.map(walk) }));
     };
-    var createRoom = function (clan, prev) {
-        return ({ clan: clan,
-            prev: prev, role: Role.Bass });
-    };
+    var createRoom = function (clan, role) { return ({ clan: clan,
+        role: role
+    }); };
     var createShield = function () {
         return {
             bass: 0,
@@ -138,24 +153,25 @@ var game = function () {
     };
     var getClanText = function (clan) {
         var _a;
-        return (_a = {}, _a[Clan.Red] = '+++', _a[Clan.Blue] = '###', _a[Clan.Yellow] = '///', _a)[clan];
+        return (_a = {}, _a[Clan.Red] = '+', _a[Clan.Blue] = '#', _a[Clan.Yellow] = '/', _a)[clan];
     };
     var getClanAttributes = function (clan) { return ({ color: getClanColor(clan),
         text: getClanText(clan)
     }); };
-    var drawNPCS = function (state) {
+    var drawNPCS = function (time, state) {
         var _a = getClanAttributes(state.room.clan), color = _a.color, text = _a.text;
         var uw = 50;
         var uh = 50;
         return function (ctx) {
             state.drones.forEach(function (_a, i) {
-                var x = _a.x, y = _a.y;
+                var x = _a.x, y = _a.y, shield = _a.shield;
                 ctx.fillStyle = color;
-                ctx.fillText(text, x, y);
+                //@ts-ignore
+                ctx.fillText(text.repeat(shield), x, y);
             });
         };
     };
-    var drawPlayer = function (state) {
+    var drawPlayer = function (time, state) {
         var color = drawPlayer.color || (drawPlayer.color = 'magenta');
         var text = drawPlayer.text || (drawPlayer.text = '!*!');
         return function (ctx) {
@@ -163,12 +179,12 @@ var game = function () {
             ctx.fillText(text, state.player.x, state.player.y);
         };
     };
-    var drawTiles = function (ctx) {
+    var drawTiles = function (time, ctx) {
         var tw = 80;
         var th = 80;
         var nx = canvasWidth / tw;
         var ny = canvasHeight / th;
-        ctx.fillStyle = 'grey';
+        ctx.fillStyle = 'magenta';
         ctx.stokeStyle = 'cyan';
         for (var i = 0; i < nx; i++)
             for (var j = 0; j < ny; j++) {
@@ -177,7 +193,7 @@ var game = function () {
             }
     };
     var drawDoors = function (ctx, clan) {
-        var altClans = Object.keys(Clan).filter(function (c) { return parseInt(c) !== clan; }).map(function (a) { return parseInt(a); }).filter(aN);
+        var altClans = Object.keys(Clan).map(function (a) { return parseInt(a); }).filter(function (c) { return c !== clan; }).filter(aN);
         var doorHeight = 40;
         var offsetWall = 0;
         var doorWidth = 20;
@@ -189,9 +205,9 @@ var game = function () {
         ctx.fillStyle = getClanColor(altClans[1]);
         ctx.fillRect(canvasWidth - offsetWall - doorWidth, offsetCeiling, canvasWidth - offsetWall + doorWidth, offsetCeiling + doorHeight);
     };
-    var drawRoom = function (state) {
+    var drawRoom = function (time, state) {
         return function (ctx) {
-            drawTiles(ctx);
+            drawTiles(time, ctx);
             drawDoors(ctx, state.room.clan);
             ctx.strokeStyle = "black";
             ctx.strokeRect(0, 0, 600, 600);
@@ -227,11 +243,11 @@ var game = function () {
         drones = drones.concat(createDrone());
         return getDrones(qty - 1, drones);
     };
-    var updateStage = function (state, ill) {
-        ill(function (ctx) { return ctx.clearRect(0, 0, 900, 900); });
-        ill(drawRoom(state));
-        ill(drawNPCS(state));
-        ill(drawPlayer(state));
+    var updateStage = function (time, state, illustrate) {
+        illustrate(function (ctx) { return ctx.clearRect(0, 0, 900, 900); });
+        illustrate(drawRoom(time, state));
+        illustrate(drawNPCS(time, state));
+        illustrate(drawPlayer(time, state));
     };
     var updateListeners = function (state) {
         if (typeof updateListeners.listen == 'function')
@@ -240,11 +256,11 @@ var game = function () {
         window.addEventListener('keydown', updateListeners.listen);
         return updateListeners.prev || [];
     };
-    var tick = function (time, state, draw) {
-        var nState = updatePositions(state);
+    var tick = function (time, prev, draw) {
+        var next = applyControls(time, prev);
         updateListeners(state);
-        updateStage(nState, draw);
-        requestAnimationFrame(function (ntime) { return tick(ntime, nState, draw); });
+        updateStage(time, next, draw);
+        requestAnimationFrame(function (ntime) { return tick(ntime, next, draw); });
     };
     /** Grabs the rendering context to provide render callback. */
     var go = function (state, tick) {
@@ -263,9 +279,22 @@ var game = function () {
     var controls = [];
     var state = { player: createPlayer(),
         drones: getDrones(),
-        room: { clan: Clan.Yellow, prev: null, role: Role.Bass }
+        fx: [], room: { clan: null, role: null }, level: 0 };
+    var openingRoom = function (ctx) {
+        var radius = 100;
+        Object.keys(Clan).map(function (a) { return parseInt(a); });
+        // ctx.arc(x * i, 200, radius, 0, 2 * Math.PI);    
+    };
+    /** Create a room with new values compared to a previous room. */
+    var nextRoom = function (pClan, pRole) {
+        var altClans = Object.keys(Clan).map(function (a) { return parseInt(a); }).filter(function (c) { return (c !== pClan) && aN(c); });
+        var altRoles = Object.keys(Role).map(function (a) { return parseInt(a); }).filter(function (r) { return (r !== pRole) && aN(r); });
+        return ({ clan: altClans[Number(coinToss())],
+            role: altRoles[Number(coinToss())]
+        });
     };
     go(state, tick);
 };
+// todo decide if it is worth having a global async controls or use something else
 game.controls = [];
 game();

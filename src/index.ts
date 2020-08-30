@@ -37,14 +37,15 @@ type Shield =
 type Room = 
   { clan: Clan
   , role: Role
-  , prev: Room | Empty
   }
 
 
 type State = 
   { player: Player
   , drones: Drone[]
+  , fx: any[]
   , room: Room
+  , level: number
   }
 
 
@@ -56,19 +57,24 @@ type UnitPosition =
   }
 
 
+type ActiveZone = UnitPosition & 
+    { onCreate?: () => SideFX
+    , onEnter?: () => SideFX
+    , onCollision?: () => SideFX
+    }
+
+
+interface ControlListener
+    { (key: string): Controls }
+
+
 interface Game
  { (): SideFX
   controls: Controls }
 
 
-// type Peripherals =
-//   { keydown: any[]
-//   , click: 
-//   , cursor: }
-
-
 interface CreateRoom
-  { (clan: Clan, prev: Room): Room }
+  { (clan: Clan, role: Role): Room }
 
 
 interface HandleTick
@@ -88,7 +94,7 @@ interface Setup
 
 
 interface UpdateStage
-  { (state: State, draw: Illustrate): SideFX }
+  { (time: DOMTimeStamp, state: State, draw: Illustrate): SideFX }
 
 
 interface Draw
@@ -96,30 +102,32 @@ interface Draw
 
 
 interface StatefulDraw
-  { (state: State): Draw
+  { (time: DOMHighResTimeStamp, state: State): Draw
     color?: string
     font?: string
     text?: string }
 
 
-interface IsNearWall<T extends UnitPosition>
-  { (u: T): boolean }
+interface IsNearWall
+  { (u): boolean }
 
 
 interface GetNumber
   { (x: number, ...yz: number[]): number }
 
 
-type ModulationMap =
-  { [key: string]: GetNumber }
-
-
 interface Modulate<T extends Object>
   { (prev: T, changes: ModulationMap ): T }
 
 
+interface UpdateListeners
+    { (state: State): Controls
+      prev?: Controls
+      listen?: (e: KeyboardEvent) => SideFX }
 
-let controls: Controls = []
+
+type ModulationMap =
+  { [key: string]: GetNumber }
 
 
 type Controls = string[]
@@ -139,10 +147,8 @@ type Drone = UnitPosition &
 
 
 // global constants
-
 const canvasWidth = 800
 const canvasHeight = 450
-
 const playerHeight = 80
 const playerWidth = 80
 
@@ -154,14 +160,18 @@ const log = (...any: any[]): SideFX =>
   <void><unknown> any.map(a => console.log(a))
 
 
-const isNearWall: IsNearWall<UnitPosition> = (u, threshold = 0.1) => {
+const coinToss = (): boolean =>
+  (Math.random() < 0.5
+)
+
+const isNearWall = <U extends UnitPosition>(u: U, threshold = 0.1): boolean => {
   return (u.x <= canvasWidth * threshold) && (u.y <= canvasHeight * threshold)
 }
 
 
 const walk = <U extends UnitPosition>(u: U, step = 1 ): U => {
   let p = u.lastwalk ? 'x' : 'y'
-  u[p] = (Math.random() < 0.5) ? u[p] + 1 : u[p] - 1
+  u[p] = coinToss() ? u[p] + 1 : u[p] - 1
   u.lastwalk = !u.lastwalk
   return u
 } 
@@ -206,16 +216,34 @@ const moveDown = <U extends UnitPosition>(u: U, amt=3): U  =>
   ({...u, y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight)})
 
 
-const controlMap = () => 
-  ({ ArrowRight: moveRight
+const fire = <U extends UnitPosition>(time, state: State): State => {
+  const { player, fx } = state
+  const origin = 
+    { x: player.x
+    , y: player.y
+    }
+  return (
+    { ...state
+    , fx: fx.concat({type: 'attack', origin})
+    })
+}
+
+
+const motionControls = () => (
+  { ArrowRight: moveRight
   , ArrowLeft: moveLeft
   , ArrowDown: moveDown
   , ArrowUp: moveUp
   })
 
 
-const applyControl = (player, controlKey): Player => {
-  let map = controlMap()
+const actionControls = () => (
+  { f: fire
+  })
+
+
+const applyMotion = (player, controlKey): Player => {
+  let map = motionControls()
   // @ts-ignore property includes does not exist on type string[]
   if (! (Object.keys(map).includes(controlKey)))
     return player
@@ -224,24 +252,33 @@ const applyControl = (player, controlKey): Player => {
 }
 
 
+const applyActions = (state, controlKey): State => {
+  let map = actionControls()
+  // @ts-ignore property includes does not exist on type string[]
+  if (! (Object.keys(map).includes(controlKey)))
+    return state
+
+  return map[controlKey](state)
+}
+
+
+
 const game: Game = () => {
   
-  const updatePositions = (state: State): State => {
+  const applyControls = (time, state: State): State => {
     return (
       {...state
-      , player: game.controls.reduce(applyControl,state.player)
+      , player: game.controls.reduce(applyMotion,state.player)
+      , fx: state.fx.reduce(applyActions,state.fx)
       , drones: state.drones.map(walk)
       })
   }
 
   
-  const createRoom: CreateRoom = (clan, prev) => {
-    return (
-      { clan
-      , prev
-      , role: Role.Bass
-      })
-  }
+  const createRoom: CreateRoom = (clan, role) => (
+    { clan
+    , role
+    })
 
 
   const createShield = () => {
@@ -289,9 +326,9 @@ const game: Game = () => {
 
 
   const getClanText = (clan: Clan): string => (
-    { [Clan.Red]: '+++'
-    , [Clan.Blue]: '###'
-    , [Clan.Yellow]: '///'
+    { [Clan.Red]: '+'
+    , [Clan.Blue]: '#'
+    , [Clan.Yellow]: '/'
     })[clan]
 
   
@@ -301,20 +338,21 @@ const game: Game = () => {
     })
 
 
-  const drawNPCS: StatefulDraw = (state): Draw => {
+  const drawNPCS: StatefulDraw = (time, state): Draw => {
     const {color, text} = getClanAttributes(state.room.clan)
     let uw = 50
     let uh = 50
     return (ctx) => {
-      state.drones.forEach( ({x,y},i) => {
+      state.drones.forEach( ({x,y, shield},i) => {
         ctx.fillStyle = color
-        ctx.fillText(text, x, y)  
+        //@ts-ignore
+        ctx.fillText(text.repeat(shield), x, y)  
       } )
     }
   }
 
 
-  const drawPlayer: StatefulDraw = (state): Draw => {
+  const drawPlayer: StatefulDraw = (time, state): Draw => {
     const color = drawPlayer.color || (drawPlayer.color = 'magenta')
     const text = drawPlayer.text || (drawPlayer.text ='!*!')
     return (ctx) => {
@@ -324,12 +362,12 @@ const game: Game = () => {
   }
 
 
-  const drawTiles = (ctx): SideFX => {
+  const drawTiles = (time, ctx): SideFX => {
     let tw = 80
     let th = 80
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
-    ctx.fillStyle = 'grey'
+    ctx.fillStyle = 'magenta'
     ctx.stokeStyle = 'cyan'
 
     for (let i=0;i<nx;i++) 
@@ -341,7 +379,7 @@ const game: Game = () => {
 
 
   const drawDoors = (ctx, clan: Clan): SideFX => {
-    let altClans = Object.keys(Clan).filter(c => parseInt(c) !== clan).map(a => parseInt(a)).filter(aN)
+    let altClans = Object.keys(Clan).map(a => parseInt(a)).filter(c => c !== clan).filter(aN)
     let doorHeight = 40
     let offsetWall = 0
     let doorWidth = 20
@@ -357,18 +395,14 @@ const game: Game = () => {
   }
 
 
-  const drawRoom: StatefulDraw = (state): Draw => {
+  const drawRoom: StatefulDraw = (time, state): Draw => {
     return (ctx) => {
-      drawTiles(ctx)
+      drawTiles(time, ctx)
       drawDoors(ctx, state.room.clan)
       ctx.strokeStyle = "black"
       ctx.strokeRect(0, 0, 600, 600)
     }
   }
-
-
-  interface ControlListener
-    { (key: string): Controls }
 
 
   const addControlKey: ControlListener = (key) => {
@@ -411,18 +445,12 @@ const game: Game = () => {
   }
 
 
-  const updateStage: UpdateStage = (state, ill) => {
-    ill( (ctx) => ctx.clearRect(0,0,900,900) )
-    ill( drawRoom(state) )
-    ill( drawNPCS(state) )
-    ill( drawPlayer(state) )
+  const updateStage: UpdateStage = (time, state, illustrate) => {
+    illustrate( (ctx) => ctx.clearRect(0,0,900,900) )
+    illustrate( drawRoom(time, state) )
+    illustrate( drawNPCS(time, state) )
+    illustrate( drawPlayer(time, state) )
   }
-
-
-  interface UpdateListeners
-    { (state: State): Controls
-      prev?: Controls
-      listen?: (e: KeyboardEvent) => SideFX }
 
 
   const updateListeners: UpdateListeners = (state) => {
@@ -435,11 +463,11 @@ const game: Game = () => {
   }
 
 
-  const tick: HandleTick = (time: DOMHighResTimeStamp, state, draw) => {
-    const nState = updatePositions(state)
+  const tick: HandleTick = (time, prev: State, draw) => {
+    const next = applyControls(time, prev)
     updateListeners(state)
-    updateStage(nState, draw)
-    requestAnimationFrame((ntime) => tick(ntime, nState, draw))
+    updateStage(time, next, draw)
+    requestAnimationFrame((ntime) => tick(ntime, next, draw))
   }
 
 
@@ -462,14 +490,37 @@ const game: Game = () => {
 
 
   const controls: Controls = []
-  const state = 
+  const state: State = 
     { player: createPlayer()
     , drones: getDrones()
-    , room: { clan: Clan.Yellow, prev: null, role: Role.Bass }
+    , fx: []
+    , room: <Room><unknown>{ clan: null, role: null }
+    , level: 0
     }
+
+
+  const openingRoom = (ctx: CanvasRenderingContext2D) => {
+    let radius = 100
+    Object.keys(Clan).map(a => parseInt(a))
+
+    // ctx.arc(x * i, 200, radius, 0, 2 * Math.PI);    
+  }
+
+
+  /** Create a room with new values compared to a previous room. */
+  const nextRoom = (pClan: Clan, pRole: Role): Room => {
+    let altClans = Object.keys(Clan).map(a => parseInt(a)).filter(c => (c !== pClan) && aN(c))
+    let altRoles = Object.keys(Role).map(a => parseInt(a)).filter(r => (r !== pRole) && aN(r))
+    
+    return (
+      { clan: altClans[Number(coinToss())]
+      , role: altRoles[Number(coinToss())]
+      })
+  }
 
   go(state, tick)
 }
 
+// todo decide if it is worth having a global async controls or use something else
 game.controls = []
 game()
