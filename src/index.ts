@@ -57,11 +57,11 @@ type UnitPosition =
   }
 
 
-type ActiveZone = UnitPosition & 
-    { onCreate?: () => SideFX
-    , onEnter?: () => SideFX
-    , onCollision?: () => SideFX
-    }
+type TouchZone = UnitPosition & 
+  { onCreate?: () => SideFX
+  , onEnter?: () => SideFX
+  , onCollision?: () => SideFX
+  }
 
 
 interface ControlListener
@@ -353,7 +353,7 @@ const game: Game = () => {
 
 
   const drawPlayer: StatefulDraw = (time, state): Draw => {
-    const color = drawPlayer.color || (drawPlayer.color = 'magenta')
+    const color = drawPlayer.color || (drawPlayer.color = 'white')
     const text = drawPlayer.text || (drawPlayer.text ='!*!')
     return (ctx) => {
       ctx.fillStyle = color
@@ -367,14 +367,19 @@ const game: Game = () => {
     let th = 80
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
-    ctx.fillStyle = 'magenta'
     ctx.stokeStyle = 'cyan'
 
-    for (let i=0;i<nx;i++) 
+
+    for (let i=0;i<nx;i++) {
+      let r = (i *tiny(time, 2)) % 255
       for (let j=0;j<ny;j++) {
+        let g = (j *tiny(time, 1)) % 255
+        let b = (i+j *tiny(time, 2)) % 255
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
         ctx.strokeRect(i*tw, j*th, i*tw + tw, j*tw+tw)
       }
+    }
   }
 
 
@@ -495,7 +500,7 @@ const game: Game = () => {
 
 
   const { abs, sin, cos, pow } = Math
-  const tiny = (n) => n * pow(10,-3)
+  const tiny = (n, scale = 3) => n * pow(10,-(scale))
   const controls: Controls = []
   const state: State = 
     { player: createPlayer()
@@ -525,6 +530,8 @@ const game: Game = () => {
         ctx.stroke()
       } )
     }
+    illustrate( drawPlayer(time, state) )
+
   }
 
 

@@ -172,7 +172,7 @@ var game = function () {
         };
     };
     var drawPlayer = function (time, state) {
-        var color = drawPlayer.color || (drawPlayer.color = 'magenta');
+        var color = drawPlayer.color || (drawPlayer.color = 'white');
         var text = drawPlayer.text || (drawPlayer.text = '!*!');
         return function (ctx) {
             ctx.fillStyle = color;
@@ -184,13 +184,17 @@ var game = function () {
         var th = 80;
         var nx = canvasWidth / tw;
         var ny = canvasHeight / th;
-        ctx.fillStyle = 'magenta';
         ctx.stokeStyle = 'cyan';
-        for (var i = 0; i < nx; i++)
+        for (var i = 0; i < nx; i++) {
+            var r = (i * tiny(time, 2)) % 255;
             for (var j = 0; j < ny; j++) {
+                var g = (j * tiny(time, 1)) % 255;
+                var b = (i + j * tiny(time, 2)) % 255;
+                ctx.fillStyle = "rgb(" + r + ", " + g + ", " + b + ")";
                 ctx.fillRect(i * tw - i, j * th - j, i * tw + tw, j * tw + tw);
                 ctx.strokeRect(i * tw, j * th, i * tw + tw, j * tw + tw);
             }
+        }
     };
     var drawDoors = function (ctx, clan) {
         var altClans = Object.keys(Clan).map(function (a) { return parseInt(a); }).filter(function (c) { return c !== clan; }).filter(aN);
@@ -280,7 +284,10 @@ var game = function () {
         tick(0, state, draw);
     };
     var abs = Math.abs, sin = Math.sin, cos = Math.cos, pow = Math.pow;
-    var tiny = function (n) { return n * pow(10, -3); };
+    var tiny = function (n, scale) {
+        if (scale === void 0) { scale = 3; }
+        return n * pow(10, -(scale));
+    };
     var controls = [];
     var state = { player: createPlayer(),
         drones: getDrones(),
@@ -306,6 +313,7 @@ var game = function () {
         for (var i = 0; i < clans.length; i++) {
             _loop_1(i);
         }
+        illustrate(drawPlayer(time, state));
     };
     // saved preset for showing two elements orbiting around a central unit
     var orbit = function (time, state, illustrate) {
