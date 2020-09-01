@@ -22,11 +22,6 @@ var Clan;
     Clan[Clan["Red"] = 1] = "Red";
     Clan[Clan["Yellow"] = 2] = "Yellow";
 })(Clan || (Clan = {}));
-// global constants
-var canvasWidth = 800;
-var canvasHeight = 450;
-var playerHeight = 80;
-var playerWidth = 80;
 /**
  * Quadtree Constructor
  * @param Object bounds            bounds of the node { x, y, width, height }
@@ -34,156 +29,103 @@ var playerWidth = 80;
  * @param Integer max_levels       (optional) total max levels inside root Quadtree (default: 4)
  * @param Integer level            (optional) deepth level, required for subnodes (default: 0)
  */
-function Quadtree(bounds, max_objects, max_levels, level) {
-    if (level === void 0) { level = 0; }
-    this.max_objects = max_objects || 10;
-    this.max_levels = max_levels || 4;
-    this.level = level || 0;
-    this.bounds = bounds;
-    this.objects = [];
-    this.nodes = [];
-}
-;
-/**
- * Split the node into 4 subnodes
- */
-Quadtree.prototype.split = function () {
-    var nextLevel = this.level + 1, subWidth = this.bounds.width / 2, subHeight = this.bounds.height / 2, x = this.bounds.x, y = this.bounds.y;
-    //top right node
-    this.nodes[0] = new Quadtree({
-        x: x + subWidth,
-        y: y,
-        width: subWidth,
-        height: subHeight
-    }, this.max_objects, this.max_levels, nextLevel);
-    //top left node
-    this.nodes[1] = new Quadtree({
-        x: x,
-        y: y,
-        width: subWidth,
-        height: subHeight
-    }, this.max_objects, this.max_levels, nextLevel);
-    //bottom left node
-    this.nodes[2] = new Quadtree({
-        x: x,
-        y: y + subHeight,
-        width: subWidth,
-        height: subHeight
-    }, this.max_objects, this.max_levels, nextLevel);
-    //bottom right node
-    this.nodes[3] = new Quadtree({
-        x: x + subWidth,
-        y: y + subHeight,
-        width: subWidth,
-        height: subHeight
-    }, this.max_objects, this.max_levels, nextLevel);
-};
-/**
- * Determine which node the object belongs to
- * @param Object pRect      bounds of the area to be checked, with x, y, width, height
- * @return Array            an array of indexes of the intersecting subnodes
- *                          (0-3 = top-right, top-left, bottom-left, bottom-right / ne, nw, sw, se)
- */
-Quadtree.prototype.getIndex = function (pRect) {
-    var indexes = [], verticalMidpoint = this.bounds.x + (this.bounds.width / 2), horizontalMidpoint = this.bounds.y + (this.bounds.height / 2);
-    var startIsNorth = pRect.y < horizontalMidpoint, startIsWest = pRect.x < verticalMidpoint, endIsEast = pRect.x + pRect.width > verticalMidpoint, endIsSouth = pRect.y + pRect.height > horizontalMidpoint;
-    //top-right quad
-    if (startIsNorth && endIsEast) {
-        indexes.push(0);
+var Quadtree = /** @class */ (function () {
+    function Quadtree(bounds, max_objects, max_levels, level) {
+        if (max_objects === void 0) { max_objects = 10; }
+        if (max_levels === void 0) { max_levels = 4; }
+        if (level === void 0) { level = 0; }
+        this.box = [];
+        this.nodes = [];
+        this.max_objects = 0;
+        this.max_levels = 0;
+        this.level = 0;
+        this.bounds = { x: 0, y: 0, width: 0, height: 0 };
+        this.max_objects = max_objects || 10;
+        this.max_levels = max_levels || 4;
+        this.level = level || 0;
+        this.bounds = bounds;
+        this.box = [];
+        this.nodes = [];
     }
-    //top-left quad
-    if (startIsWest && startIsNorth) {
-        indexes.push(1);
-    }
-    //bottom-left quad
-    if (startIsWest && endIsSouth) {
-        indexes.push(2);
-    }
-    //bottom-right quad
-    if (endIsEast && endIsSouth) {
-        indexes.push(3);
-    }
-    return indexes;
-};
-/**
- * Insert the object into the node. If the node
- * exceeds the capacity, it will split and add all
- * objects to their corresponding subnodes.
- * @param Object pRect        bounds of the object to be added { x, y, width, height }
- */
-Quadtree.prototype.insert = function (pRect) {
-    var i = 0, indexes;
-    //if we have subnodes, call insert on matching subnodes
-    if (this.nodes.length) {
-        indexes = this.getIndex(pRect);
-        for (i = 0; i < indexes.length; i++) {
-            this.nodes[indexes[i]].insert(pRect);
+    Quadtree.prototype.split = function () {
+        var _this = this;
+        var subWidth = this.bounds.width / 2;
+        var subHeight = this.bounds.height / 2;
+        var _a = this.bounds, x = _a.x, y = _a.y;
+        var factory = function (x, y) { return new Quadtree({
+            x: x,
+            y: y,
+            width: subWidth,
+            height: subHeight
+        }, _this.max_objects, _this.max_levels, _this.level + 1); };
+        this.nodes[0] = factory(x + subWidth, y);
+        this.nodes[1] = factory(x, y);
+        this.nodes[2] = factory(x, y + subHeight);
+        this.nodes[3] = factory(x + subWidth, y + subHeight);
+        return this;
+    };
+    Quadtree.prototype.getIndex = function (bounds) {
+        var verticalMidpoint = this.bounds.x + (this.bounds.width / 2), horizontalMidpoint = this.bounds.y + (this.bounds.height / 2);
+        var startIsNorth = bounds.y < horizontalMidpoint, startIsWest = bounds.x < verticalMidpoint, endIsEast = bounds.x + bounds.width > verticalMidpoint, endIsSouth = bounds.y + bounds.height > horizontalMidpoint;
+        return ([startIsNorth && endIsEast,
+            startIsWest && startIsNorth,
+            startIsWest && endIsSouth,
+            endIsEast && endIsSouth]).findIndex(Boolean);
+    };
+    Quadtree.prototype.insert = function (bounds) {
+        //if we have subnodes, call insert on matching subnodes
+        if (this.nodes.length > 0) {
+            var index = this.getIndex(bounds);
+            this.nodes[index].insert(bounds);
+            return this;
+        }
+        //otherwise, store object here
+        this.box.push(bounds);
+        //max_objects reached
+        if (this.box.length > this.max_objects && this.level < this.max_levels) {
+            //split if we don't already have subnodes
+            if (this.nodes.length == 0) {
+                this.split();
+            }
+            //add all objects to their corresponding subnode
+            for (var i = 0; i < this.box.length; i++) {
+                var index = this.getIndex(this.box[i]);
+                this.nodes[index].insert(this.box[i]);
+            }
+            //clean up this node
+            this.box = [];
         }
         return;
-    }
-    //otherwise, store object here
-    this.objects.push(pRect);
-    //max_objects reached
-    if (this.objects.length > this.max_objects && this.level < this.max_levels) {
-        //split if we don't already have subnodes
-        if (!this.nodes.length) {
-            this.split();
-        }
-        //add all objects to their corresponding subnode
-        for (i = 0; i < this.objects.length; i++) {
-            indexes = this.getIndex(this.objects[i]);
-            for (var k = 0; k < indexes.length; k++) {
-                this.nodes[indexes[k]].insert(this.objects[i]);
-            }
-        }
-        //clean up this node
-        this.objects = [];
-    }
-};
-/**
- * Return all objects that could collide with the given object
- * @param Object pRect      bounds of the object to be checked { x, y, width, height }
- * @Return Array            array with all detected objects
- */
-Quadtree.prototype.retrieve = function (pRect) {
-    var indexes = this.getIndex(pRect), returnObjects = this.objects;
-    //if we have subnodes, retrieve their objects
-    if (this.nodes.length) {
-        for (var i = 0; i < indexes.length; i++) {
-            returnObjects = returnObjects.concat(this.nodes[indexes[i]].retrieve(pRect));
-        }
-    }
-    //remove duplicates
-    returnObjects = returnObjects.filter(function (item, index) {
-        return returnObjects.indexOf(item) >= index;
-    });
-    return returnObjects;
-};
-/**
- * Clear the quadtree
- */
-Quadtree.prototype.clear = function () {
-    this.objects = [];
-    for (var i = 0; i < this.nodes.length; i++) {
-        if (this.nodes.length) {
-            this.nodes[i].clear();
-        }
-    }
-    this.nodes = [];
-};
-//export for commonJS or browser
-if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-    module.exports = Quadtree;
-}
-else {
-    window.Quadtree = Quadtree;
-}
-var Space = new Quadtree({
-    x: 0,
-    y: 0,
-    width: canvasWidth,
-    height: canvasHeight
-}, 10, 4);
+    };
+    Quadtree.prototype.retrieve = function (bounds) {
+        var _this = this;
+        var selections = this.box;
+        if (this.nodes.length == 0)
+            return selections;
+        var index = this.getIndex(bounds);
+        return this.nodes.reduce(function (keepers, el, i) {
+            var node = _this.nodes[index].retrieve(bounds);
+            return (keepers.includes(node))
+                ? keepers
+                : keepers.concat(node);
+        }, selections);
+    };
+    Quadtree.prototype.clear = function () {
+        this.box = [];
+        for (var i = 0; i < this.nodes.length; i++)
+            if (this.nodes.length)
+                this.nodes[i].clear();
+        this.nodes = [];
+        return;
+    };
+    return Quadtree;
+}());
+// global constants
+var canvasWidth = 800;
+var canvasHeight = 450;
+var playerHeight = 80;
+var playerWidth = 80;
+var tree = new Quadtree({ x: 0, y: 0, width: canvasWidth, height: canvasHeight }, 10, 4);
 var aN = function (n) { return !isNaN(n); };
 var log = function () {
     var any = [];
@@ -420,36 +362,36 @@ var game = function () {
         window.addEventListener('keydown', updateListeners.listen);
         return updateListeners.prev || [];
     };
-    var applyToSpace = function (tree, u) {
-        //@ts-ignore
+    var applyToTree = function (tree, u) {
         tree.insert(u);
         return tree;
     };
-    var updateSpace = function (state, tree) {
+    var updateTreeIndices = function (state, tree) {
+        throttle();
         var items = [];
         items = items.concat(state.player);
         items = items.concat(state.drones);
-        return items.reduce(applyToSpace, tree);
+        return items.reduce(applyToTree, tree);
     };
     var checkCollisions = function (state, tree) {
-        throttle();
         var intersections = tree.retrieve({
             x: state.player.x,
             y: state.player.y,
             width: playerWidth,
             height: playerHeight
         });
-        if (intersections)
+        if (intersections) {
             console.log('intersections');
-        console.log(intersections);
+            console.log(intersections);
+        }
     };
     var tick = function (time, prev, draw) {
-        Space.clear();
+        tree.clear();
         var next = applyControls(time, prev);
-        updateSpace(next, Space);
-        checkCollisions(next, Space);
+        updateTreeIndices(next, tree);
         updateListeners(state);
         updateStage(time, next, draw);
+        checkCollisions(next, tree);
         requestAnimationFrame(function (ntime) { return tick(ntime, next, draw); });
     };
     /** Grabs the rendering context to provide render callback. */
@@ -473,7 +415,7 @@ var game = function () {
     };
     var controls = [];
     var state = { player: createPlayer(),
-        drones: getDrones(),
+        drones: [],
         fx: [], room: { clan: null, role: null }, level: 0 };
     var openingRoom = function (time, state, illustrate) {
         var clans = Object.keys(Clan).map(function (a) { return parseInt(a); }).filter(aN);
@@ -484,9 +426,10 @@ var game = function () {
         illustrate(function (ctx) { return drawTiles(time, ctx); });
         var _loop_1 = function (i) {
             illustrate(function (ctx) {
-                var radius = 10 * abs(sin((1 + i) * tiny(time)));
+                var radius = 40 * abs(sin((1 + i) * tiny(time)));
                 var x = offsetWall + (i * elWidth);
                 var y = offsetCeiling; // * ((Math.cos(time * (i*0.25)/100)))
+                tree.insert({ x: x, y: y, width: elWidth, height: elWidth });
                 ctx.fillStyle = ctx.strokeStyle = getClanColor(i);
                 ctx.arc(x, y, radius, 0, 2 * Math.PI);
                 ctx.fill();

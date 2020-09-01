@@ -1,4 +1,3 @@
-
 enum Role 
   { Bass
   , Tenor
@@ -54,7 +53,7 @@ type UnitPosition =
   { x: number
   , y: number
   , z?: number 
-  , lastwalk?: Boolean
+  , lastwalk?: boolean
   }
 
 
@@ -117,7 +116,7 @@ interface GetNumber
   { (x: number, ...yz: number[]): number }
 
 
-interface Modulate<T extends Object>
+interface Modulate<T>
   { (prev: T, changes: ModulationMap ): T }
 
 
@@ -125,6 +124,147 @@ interface UpdateListeners
     { (state: State): Controls
       prev?: Controls
       listen?: (e: KeyboardEvent) => SideFX }
+
+
+      interface Bounds  
+  { x: number, y: number, width: number, height: number}
+
+interface QTInterface
+  { box: any[]
+  , nodes: QTInterface[]
+  , insert: (bounds) => void
+  , split: () => void
+  , getIndex: (bounds) => void
+  , clear: () => void
+  , retrieve: (bounds) => any
+  }
+
+  /**
+   * Quadtree Constructor
+   * @param Object bounds            bounds of the node { x, y, width, height }
+   * @param Integer max_objects      (optional) max objects a node can hold before splitting into 4 subnodes (default: 10)
+   * @param Integer max_levels       (optional) total max levels inside root Quadtree (default: 4) 
+   * @param Integer level            (optional) deepth level, required for subnodes (default: 0)
+   */
+  class Quadtree implements QTInterface {
+    public box: any[] = []
+    public nodes: Quadtree[] = []
+    protected max_objects = 0
+    protected max_levels = 0
+    protected level = 0
+    protected bounds: Bounds = {x: 0, y: 0, width: 0, height: 0}
+
+    constructor(bounds: Bounds, max_objects = 10, max_levels = 4, level =0) {
+      this.max_objects = max_objects || 10;
+      this.max_levels = max_levels || 4;
+      
+      this.level = level || 0;
+      this.bounds = bounds;
+      
+      this.box = [];
+      this.nodes = [];
+    }
+
+
+    split() {
+      const subWidth = this.bounds.width/2
+      const subHeight = this.bounds.height/2
+      const {x, y} = this.bounds;
+
+      const factory = (x, y) => new Quadtree({
+        x, 
+        y, 
+        width : subWidth, 
+        height : subHeight
+      }, this.max_objects, this.max_levels, this.level + 1)
+   
+      this.nodes[0] = factory(x + subWidth, y)
+      this.nodes[1] = factory(x, y)
+      this.nodes[2] = factory(x, y + subHeight)
+      this.nodes[3] = factory(x + subWidth, y + subHeight)
+      return this
+    }
+
+
+    getIndex(bounds) {
+      const verticalMidpoint = this.bounds.x + (this.bounds.width/2),
+        horizontalMidpoint = this.bounds.y + (this.bounds.height/2);    
+
+      const startIsNorth = bounds.y < horizontalMidpoint,
+        startIsWest = bounds.x < verticalMidpoint,
+        endIsEast = bounds.x + bounds.width > verticalMidpoint,
+        endIsSouth = bounds.y + bounds.height > horizontalMidpoint;   
+
+     return( 
+        [ startIsNorth && endIsEast
+        , startIsWest && startIsNorth
+        , startIsWest && endIsSouth
+        , endIsEast && endIsSouth] ).findIndex(Boolean)
+  }
+
+
+  insert(bounds) {
+      //if we have subnodes, call insert on matching subnodes
+      if(this.nodes.length > 0) {
+          const index = this.getIndex(bounds);
+          this.nodes[index].insert(bounds);     
+          return this
+      }
+   
+      //otherwise, store object here
+      this.box.push(bounds);
+
+      //max_objects reached
+      if(this.box.length > this.max_objects && this.level < this.max_levels) {
+
+          //split if we don't already have subnodes
+          if(this.nodes.length == 0) {
+              this.split();
+          }
+          
+          //add all objects to their corresponding subnode
+          for(let i=0; i<this.box.length; i++) {
+              let index = this.getIndex(this.box[i])
+              this.nodes[index].insert(this.box[i])
+          }
+
+          //clean up this node
+          this.box = []
+      }
+      return;
+   }
+
+
+   retrieve(bounds: Bounds): Bounds[] {
+      let selections = this.box;
+
+      if(this.nodes.length == 0)
+        return selections
+
+      const index = this.getIndex(bounds);
+
+      return this.nodes.reduce((keepers, el, i) => {
+        let node = (<QTInterface>this.nodes[index]).retrieve(bounds)
+        return (keepers.includes(node))
+          ? keepers
+          : keepers.concat(node)
+      }, selections)
+  }
+
+
+  clear() {
+      this.box = [];
+   
+      for(let i=0; i < this.nodes.length; i++) 
+        if(this.nodes.length) 
+          this.nodes[i].clear();
+
+      this.nodes = [];
+      return;
+    }
+
+
+  }
 
 
 type ModulationMap =
@@ -154,217 +294,7 @@ const playerHeight = 80
 const playerWidth = 80
 
 
-  /**
-   * Quadtree Constructor
-   * @param Object bounds            bounds of the node { x, y, width, height }
-   * @param Integer max_objects      (optional) max objects a node can hold before splitting into 4 subnodes (default: 10)
-   * @param Integer max_levels       (optional) total max levels inside root Quadtree (default: 4) 
-   * @param Integer level            (optional) deepth level, required for subnodes (default: 0)
-   */
-  function Quadtree(bounds, max_objects, max_levels, level=0) {
-      
-      this.max_objects    = max_objects || 10;
-      this.max_levels     = max_levels || 4;
-      
-      this.level  = level || 0;
-      this.bounds = bounds;
-      
-      this.objects    = [];
-      this.nodes      = [];
-  };
-  
-  
-  /**
-   * Split the node into 4 subnodes
-   */
-  Quadtree.prototype.split = function() {
-      
-      var nextLevel   = this.level + 1,
-          subWidth    = this.bounds.width/2,
-          subHeight   = this.bounds.height/2,
-          x           = this.bounds.x,
-          y           = this.bounds.y;        
-   
-      //top right node
-      this.nodes[0] = new Quadtree({
-          x       : x + subWidth, 
-          y       : y, 
-          width   : subWidth, 
-          height  : subHeight
-      }, this.max_objects, this.max_levels, nextLevel);
-      
-      //top left node
-      this.nodes[1] = new Quadtree({
-          x       : x, 
-          y       : y, 
-          width   : subWidth, 
-          height  : subHeight
-      }, this.max_objects, this.max_levels, nextLevel);
-      
-      //bottom left node
-      this.nodes[2] = new Quadtree({
-          x       : x, 
-          y       : y + subHeight, 
-          width   : subWidth, 
-          height  : subHeight
-      }, this.max_objects, this.max_levels, nextLevel);
-      
-      //bottom right node
-      this.nodes[3] = new Quadtree({
-          x       : x + subWidth, 
-          y       : y + subHeight, 
-          width   : subWidth, 
-          height  : subHeight
-      }, this.max_objects, this.max_levels, nextLevel);
-  };
-  
-  
-  /**
-   * Determine which node the object belongs to
-   * @param Object pRect      bounds of the area to be checked, with x, y, width, height
-   * @return Array            an array of indexes of the intersecting subnodes 
-   *                          (0-3 = top-right, top-left, bottom-left, bottom-right / ne, nw, sw, se)
-   */
-  Quadtree.prototype.getIndex = function(pRect) {
-      
-      var indexes = [],
-          verticalMidpoint    = this.bounds.x + (this.bounds.width/2),
-          horizontalMidpoint  = this.bounds.y + (this.bounds.height/2);    
-
-      var startIsNorth = pRect.y < horizontalMidpoint,
-          startIsWest  = pRect.x < verticalMidpoint,
-          endIsEast    = pRect.x + pRect.width > verticalMidpoint,
-          endIsSouth   = pRect.y + pRect.height > horizontalMidpoint;    
-
-      //top-right quad
-      if(startIsNorth && endIsEast) {
-          indexes.push(0);
-      }
-      
-      //top-left quad
-      if(startIsWest && startIsNorth) {
-          indexes.push(1);
-      }
-
-      //bottom-left quad
-      if(startIsWest && endIsSouth) {
-          indexes.push(2);
-      }
-
-      //bottom-right quad
-      if(endIsEast && endIsSouth) {
-          indexes.push(3);
-      }
-   
-      return indexes;
-  };
-  
-  
-  /**
-   * Insert the object into the node. If the node
-   * exceeds the capacity, it will split and add all
-   * objects to their corresponding subnodes.
-   * @param Object pRect        bounds of the object to be added { x, y, width, height }
-   */
-  Quadtree.prototype.insert = function(pRect) {
-      
-      var i = 0,
-          indexes;
-       
-      //if we have subnodes, call insert on matching subnodes
-      if(this.nodes.length) {
-          indexes = this.getIndex(pRect);
-   
-          for(i=0; i<indexes.length; i++) {
-              this.nodes[indexes[i]].insert(pRect);     
-          }
-          return;
-      }
-   
-      //otherwise, store object here
-      this.objects.push(pRect);
-
-      //max_objects reached
-      if(this.objects.length > this.max_objects && this.level < this.max_levels) {
-
-          //split if we don't already have subnodes
-          if(!this.nodes.length) {
-              this.split();
-          }
-          
-          //add all objects to their corresponding subnode
-          for(i=0; i<this.objects.length; i++) {
-              indexes = this.getIndex(this.objects[i]);
-              for(var k=0; k<indexes.length; k++) {
-                  this.nodes[indexes[k]].insert(this.objects[i]);
-              }
-          }
-
-          //clean up this node
-          this.objects = [];
-      }
-   };
-   
-   
-  /**
-   * Return all objects that could collide with the given object
-   * @param Object pRect      bounds of the object to be checked { x, y, width, height }
-   * @Return Array            array with all detected objects
-   */
-  Quadtree.prototype.retrieve = function(pRect) {
-       
-      var indexes = this.getIndex(pRect),
-          returnObjects = this.objects;
-          
-      //if we have subnodes, retrieve their objects
-      if(this.nodes.length) {
-          for(var i=0; i<indexes.length; i++) {
-              returnObjects = returnObjects.concat(this.nodes[indexes[i]].retrieve(pRect));
-          }
-      }
-
-      //remove duplicates
-      returnObjects = returnObjects.filter(function(item, index) {
-          return returnObjects.indexOf(item) >= index;
-      });
-   
-      return returnObjects;
-  };
-  
-  
-  /**
-   * Clear the quadtree
-   */
-  Quadtree.prototype.clear = function() {
-      
-      this.objects = [];
-   
-      for(var i=0; i < this.nodes.length; i++) {
-          if(this.nodes.length) {
-              this.nodes[i].clear();
-            }
-      }
-
-      this.nodes = [];
-  };
-
-  //export for commonJS or browser
-  if(typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-      module.exports = Quadtree;
-  } else {
-      window.Quadtree = Quadtree;    
-  }
-
-
-
-
-const Space = new Quadtree({
-  x: 0,
-  y: 0,
-  width: canvasWidth,
-  height: canvasHeight
-}, 10, 4);
-
+const tree = new Quadtree({x: 0, y: 0, width: canvasWidth, height: canvasHeight }, 10, 4);
 
 
 const aN: (a:any) => boolean = n => !isNaN(n)
@@ -375,8 +305,8 @@ const log = (...any: any[]): SideFX =>
 
 
 const coinToss = (): boolean =>
-  (Math.random() < 0.5
-)
+  (Math.random() < 0.5)
+
 
 const isNearWall = <U extends UnitPosition>(u: U, threshold = 0.1): boolean => {
   return (u.x <= canvasWidth * threshold) && (u.y <= canvasHeight * threshold)
@@ -687,43 +617,43 @@ const game: Game = () => {
   }
 
 
-  const applyToSpace = <T, U extends UnitPosition>(tree: T, u: U): T => {
-    //@ts-ignore
+  const applyToTree = <U extends UnitPosition>(tree: QTInterface, u: U): QTInterface => {
     tree.insert(u)
     return tree
   }
 
 
-  const updateSpace = <T>(state: State, tree: T) => {
+  const updateTreeIndices = <T>(state: State, tree: T) => {
+    throttle()
     let items: any[] = []
     items = items.concat(state.player)
     items = items.concat(state.drones)
-    return items.reduce(applyToSpace, tree)
+    return items.reduce(applyToTree, tree)
   }
 
 
   const checkCollisions = (state, tree) => {
-    throttle()
-    let intersections = tree.retrieve({
+    const intersections = tree.retrieve({
       x: state.player.x,
       y: state.player.y,
       width: playerWidth,
       height: playerHeight
     });
 
-    if (intersections)
+    if (intersections) {
       console.log('intersections');
-    console.log(intersections);
+      console.log(intersections);
+    }
   }
   
 
   const tick: HandleTick = (time, prev: State, draw) => {
-    Space.clear()
+    tree.clear()
     const next = applyControls(time, prev)
-    updateSpace(next, Space)
-    checkCollisions(next, Space)
+    updateTreeIndices(next, tree)
     updateListeners(state)
     updateStage(time, next, draw)
+    checkCollisions(next, tree)
     requestAnimationFrame((ntime) => tick(ntime, next, draw))
   }
 
@@ -752,7 +682,7 @@ const game: Game = () => {
   const controls: Controls = []
   const state: State = 
     { player: createPlayer()
-    , drones: getDrones()
+    , drones: []
     , fx: []
     , room: <Room><unknown>{ clan: null, role: null }
     , level: 0
@@ -769,9 +699,11 @@ const game: Game = () => {
     illustrate((ctx) => drawTiles(time, ctx))
     for( let i = 0; i < clans.length; i++) {
       illustrate((ctx) => {
-        let radius = 10 * abs(sin((1+i)*tiny(time)))
-        let x = offsetWall + (i*elWidth)
-        let y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
+        const radius = 40 * abs(sin((1+i)*tiny(time)))
+        const x = offsetWall + (i*elWidth)
+        const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
+        tree.insert({x, y, width: elWidth, height: elWidth});
+
         ctx.fillStyle = ctx.strokeStyle = getClanColor(i)
         ctx.arc(x, y, radius, 0, 2 * Math.PI)
         ctx.fill()
@@ -785,7 +717,7 @@ const game: Game = () => {
 
   // saved preset for showing two elements orbiting around a central unit
   const orbit = (time,state,illustrate) => {
-    let radius = 100 
+    const radius = 100 
     const clans = Object.keys(Clan).map(a => parseInt(a)).filter(aN)
     const containerWidth = canvasWidth/2
     const offsetWall = canvasWidth/3
@@ -807,8 +739,8 @@ const game: Game = () => {
 
   /** Create a room with new values compared to a previous room. */
   const nextRoom = (pClan: Clan, pRole: Role): Room => {
-    let altClans = Object.keys(Clan).map(a => parseInt(a)).filter(c => (c !== pClan) && aN(c))
-    let altRoles = Object.keys(Role).map(a => parseInt(a)).filter(r => (r !== pRole) && aN(r))
+    const altClans = Object.keys(Clan).map(a => parseInt(a)).filter(c => (c !== pClan) && aN(c))
+    const altRoles = Object.keys(Role).map(a => parseInt(a)).filter(r => (r !== pRole) && aN(r))
     
     return (
       { clan: altClans[Number(coinToss())]
