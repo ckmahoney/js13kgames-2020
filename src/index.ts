@@ -1,3 +1,4 @@
+console.clear()
 enum Role 
   { Bass
   , Tenor
@@ -26,11 +27,15 @@ type Stats =
   }
 
 
+type ShieldMeta = 
+  { clan: Clan | Empty, strength: number }
+
+
 type Shield = 
-  { bass: number
-  , tenor: number
-  , alto: number
-  , soprano: number 
+  { [Role.Bass]: ShieldMeta
+  , [Role.Tenor]: ShieldMeta
+  , [Role.Alto]: ShieldMeta
+  , [Role.Soprano]: ShieldMeta
   }
 
 
@@ -49,10 +54,8 @@ type State =
   }
 
 
-type UnitPosition =  
-  { x: number
-  , y: number
-  , z?: number 
+type UnitPosition = Bounds & 
+  { z?: number 
   , lastwalk?: boolean
   }
 
@@ -62,6 +65,9 @@ type TouchZone = UnitPosition &
   , onEnter?: () => SideFX
   , onCollision?: () => SideFX
   }
+
+interface Bounds  
+  { x: number, y: number, width: number, height: number}
 
 
 interface ControlListener
@@ -126,8 +132,35 @@ interface UpdateListeners
       listen?: (e: KeyboardEvent) => SideFX }
 
 
-      interface Bounds  
-  { x: number, y: number, width: number, height: number}
+type Rect = 
+  { x: number
+  , y: number
+  , dx: number
+  , dy: number 
+  }
+
+// const getIndex = (qt, target: Rect) => {
+//   const verticalMidpoint = target.x + (target.dx / 2)
+//   const horizontalMidpoint = target.y + (target.dy / 2)
+//   const startIsNorth = qt.y < horizontalMidpoint,
+//     startIsWest = qt.x < verticalMidpoint,
+//     endIsSouth = qt.y + qt.dy > horizontalMidpoint,
+//     endIsEast = qt.x + qt.dx > verticalMidpoint
+
+//   // const startIsNorth = bounds.y < horizontalMidpoint,
+//   //       startIsWest = bounds.x < verticalMidpoint,
+//   //       endIsEast = bounds.x + bounds.width > verticalMidpoint,
+//   //       endIsSouth = bounds.y + bounds.height > horizontalMidpoint;   
+
+//    return( 
+//       [ startIsNorth && endIsEast
+//       , startIsWest && startIsNorth
+//       , startIsWest && endIsSouth
+//       , endIsEast && endIsSouth] )
+//    .map((inLocation, i) => inLocation ? i : NaN).filter(aN)
+// }
+
+
 
 interface QTInterface
   { box: any[]
@@ -139,132 +172,220 @@ interface QTInterface
   , retrieve: (bounds) => any
   }
 
-  /**
-   * Quadtree Constructor
-   * @param Object bounds            bounds of the node { x, y, width, height }
-   * @param Integer max_objects      (optional) max objects a node can hold before splitting into 4 subnodes (default: 10)
-   * @param Integer max_levels       (optional) total max levels inside root Quadtree (default: 4) 
-   * @param Integer level            (optional) deepth level, required for subnodes (default: 0)
-   */
-  class Quadtree implements QTInterface {
-    public box: any[] = []
-    public nodes: Quadtree[] = []
-    protected max_objects = 0
-    protected max_levels = 0
-    protected level = 0
-    protected bounds: Bounds = {x: 0, y: 0, width: 0, height: 0}
+  
+  const getLocations = (unit, bounds) => {
+    const verticalMidpoint = bounds.x + (bounds.width/2),
+      horizontalMidpoint = bounds.y + (bounds.height/2); 
 
-    constructor(bounds: Bounds, max_objects = 10, max_levels = 4, level =0) {
-      this.max_objects = max_objects || 10;
-      this.max_levels = max_levels || 4;
-      
-      this.level = level || 0;
-      this.bounds = bounds;
-      
-      this.box = [];
-      this.nodes = [];
-    }
+    const startIsNorth = unit.y < horizontalMidpoint,
+      startIsWest = unit.x < verticalMidpoint,
+      endIsEast = unit.x + unit.width > verticalMidpoint,
+      endIsSouth = unit.y + unit.height > horizontalMidpoint;
 
-
-    split() {
-      const subWidth = this.bounds.width/2
-      const subHeight = this.bounds.height/2
-      const {x, y} = this.bounds;
-
-      const factory = (x, y) => new Quadtree({
-        x, 
-        y, 
-        width : subWidth, 
-        height : subHeight
-      }, this.max_objects, this.max_levels, this.level + 1)
-   
-      this.nodes[0] = factory(x + subWidth, y)
-      this.nodes[1] = factory(x, y)
-      this.nodes[2] = factory(x, y + subHeight)
-      this.nodes[3] = factory(x + subWidth, y + subHeight)
-      return this
-    }
-
-
-    getIndex(bounds) {
-      const verticalMidpoint = this.bounds.x + (this.bounds.width/2),
-        horizontalMidpoint = this.bounds.y + (this.bounds.height/2);    
-
-      const startIsNorth = bounds.y < horizontalMidpoint,
-        startIsWest = bounds.x < verticalMidpoint,
-        endIsEast = bounds.x + bounds.width > verticalMidpoint,
-        endIsSouth = bounds.y + bounds.height > horizontalMidpoint;   
-
-     return( 
+      return(
         [ startIsNorth && endIsEast
         , startIsWest && startIsNorth
         , startIsWest && endIsSouth
-        , endIsEast && endIsSouth] ).findIndex(Boolean)
+        , endIsEast && endIsSouth] )
+     .map((inLocation, i) => inLocation ? i : NaN).filter(aN)
   }
 
 
-  insert(bounds) {
-      //if we have subnodes, call insert on matching subnodes
-      if(this.nodes.length > 0) {
-          const index = this.getIndex(bounds);
-          this.nodes[index].insert(bounds);     
-          return this
-      }
-   
-      //otherwise, store object here
-      this.box.push(bounds);
+    function Quadtree(bounds, max_objects = 4, max_levels = 10, level = 0) {
+        
+        this.max_objects    = max_objects || 10;
+        this.max_levels     = max_levels || 4;
+        
+        this.level  = level || 0;
+        this.bounds = bounds;
+        
+        this.objects    = [];
+        this.nodes      = [];
+    };
+    
+    
+    /**
+     * Split the node into 4 subnodes
+     */
+    Quadtree.prototype.split = function() {
+        
+        var nextLevel   = this.level + 1,
+            subWidth    = this.bounds.width/2,
+            subHeight   = this.bounds.height/2,
+            x           = this.bounds.x,
+            y           = this.bounds.y;        
+     
+        //top right node
+        this.nodes[0] = new Quadtree({
+            x       : x + subWidth, 
+            y       : y, 
+            width   : subWidth, 
+            height  : subHeight
+        }, this.max_objects, this.max_levels, nextLevel);
+        
+        //top left node
+        this.nodes[1] = new Quadtree({
+            x       : x, 
+            y       : y, 
+            width   : subWidth, 
+            height  : subHeight
+        }, this.max_objects, this.max_levels, nextLevel);
+        
+        //bottom left node
+        this.nodes[2] = new Quadtree({
+            x       : x, 
+            y       : y + subHeight, 
+            width   : subWidth, 
+            height  : subHeight
+        }, this.max_objects, this.max_levels, nextLevel);
+        
+        //bottom right node
+        this.nodes[3] = new Quadtree({
+            x       : x + subWidth, 
+            y       : y + subHeight, 
+            width   : subWidth, 
+            height  : subHeight
+        }, this.max_objects, this.max_levels, nextLevel);
+    };
+    
+    
+    /**
+     * Determine which node the object belongs to
+     * @param Object pRect      bounds of the area to be checked, with x, y, width, height
+     * @return Array            an array of indexes of the intersecting subnodes 
+     *                          (0-3 = top-right, top-left, bottom-left, bottom-right / ne, nw, sw, se)
+     */
+    Quadtree.prototype.getIndex = function(pRect) {
+        
+        var indexes = [],
+            verticalMidpoint    = this.bounds.x + (this.bounds.width/2),
+            horizontalMidpoint  = this.bounds.y + (this.bounds.height/2);    
 
-      //max_objects reached
-      if(this.box.length > this.max_objects && this.level < this.max_levels) {
+        var startIsNorth = pRect.y < horizontalMidpoint,
+            startIsWest  = pRect.x < verticalMidpoint,
+            endIsEast    = pRect.x + pRect.width > verticalMidpoint,
+            endIsSouth   = pRect.y + pRect.height > horizontalMidpoint;    
 
-          //split if we don't already have subnodes
-          if(this.nodes.length == 0) {
-              this.split();
-          }
-          
-          //add all objects to their corresponding subnode
-          for(let i=0; i<this.box.length; i++) {
-              let index = this.getIndex(this.box[i])
-              this.nodes[index].insert(this.box[i])
-          }
+        //top-right quad
+        if(startIsNorth && endIsEast) {
+            indexes.push(0);
+        }
+        
+        //top-left quad
+        if(startIsWest && startIsNorth) {
+            indexes.push(1);
+        }
 
-          //clean up this node
-          this.box = []
-      }
-      return;
-   }
+        //bottom-left quad
+        if(startIsWest && endIsSouth) {
+            indexes.push(2);
+        }
 
+        //bottom-right quad
+        if(endIsEast && endIsSouth) {
+            indexes.push(3);
+        }
+     
+        return indexes;
+    };
+    
+    
+    /**
+     * Insert the object into the node. If the node
+     * exceeds the capacity, it will split and add all
+     * objects to their corresponding subnodes.
+     * @param Object pRect        bounds of the object to be added { x, y, width, height }
+     */
+    Quadtree.prototype.insert = function(pRect) {
+        
+        var i = 0,
+            indexes;
+         
+        //if we have subnodes, call insert on matching subnodes
+        if(this.nodes.length) {
+            indexes = this.getIndex(pRect);
+     
+            for(i=0; i<indexes.length; i++) {
+                this.nodes[indexes[i]].insert(pRect);     
+            }
+            return pRect;
+        }
+     
+        //otherwise, store object here
+        this.objects.push(pRect);
 
-   retrieve(bounds: Bounds): Bounds[] {
-      let selections = this.box;
+        //max_objects reached
+        if(this.objects.length > this.max_objects && this.level < this.max_levels) {
 
-      if(this.nodes.length == 0)
-        return selections
+            //split if we don't already have subnodes
+            if(!this.nodes.length) {
+                this.split();
+            }
+            
+            //add all objects to their corresponding subnode
+            for(i=0; i<this.objects.length; i++) {
+                indexes = this.getIndex(this.objects[i]);
+                for(var k=0; k<indexes.length; k++) {
+                    this.nodes[indexes[k]].insert(this.objects[i]);
+                }
+            }
 
-      const index = this.getIndex(bounds);
+            //clean up this node
+            this.objects = [];
+        }
+        return pRect;
+     };
+     
+     
+    /**
+     * Return all objects that could collide with the given object
+     * @param Object pRect      bounds of the object to be checked { x, y, width, height }
+     * @Return Array            array with all detected objects
+     */
+    Quadtree.prototype.retrieve = function(pRect) {
+         
+        var indexes = this.getIndex(pRect),
+            returnObjects = this.objects;
+            
+        //if we have subnofdes, retrieve their objects
+        if(this.nodes.length) {
+            for(var i=0; i<indexes.length; i++) {
+                returnObjects = returnObjects.concat(this.nodes[indexes[i]].retrieve(pRect));
+            }
+        }
 
-      return this.nodes.reduce((keepers, el, i) => {
-        let node = (<QTInterface>this.nodes[index]).retrieve(bounds)
-        return (keepers.includes(node))
-          ? keepers
-          : keepers.concat(node)
-      }, selections)
-  }
+        //remove duplicates
+        returnObjects = returnObjects.filter(function(item, index) {
+            return returnObjects.indexOf(item) >= index;
+        });
+     
+        return returnObjects;
+    };
+    
+    
+    /**
+     * Clear the quadtree
+     */
+    Quadtree.prototype.clear = function() {
+        
+        this.objects = [];
+     
+        for(var i=0; i < this.nodes.length; i++) {
+            if(this.nodes.length) {
+                this.nodes[i].clear();
+              }
+        }
 
+        this.nodes = [];
+    };
 
-  clear() {
-      this.box = [];
-   
-      for(let i=0; i < this.nodes.length; i++) 
-        if(this.nodes.length) 
-          this.nodes[i].clear();
-
-      this.nodes = [];
-      return;
+    //export for commonJS or browser
+    if(typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+        module.exports = Quadtree;
+    } else {
+        window.Quadtree = Quadtree;    
     }
 
-
-  }
 
 
 type ModulationMap =
@@ -280,11 +401,11 @@ type Empty = null | undefined
 type SideFX = void
 
 
-type Player = UnitPosition & Stats & { shield: Shield }
+type Player = UnitPosition & Stats & { name: string, shield: Shield }
 
 
 type Drone = UnitPosition &
-  { shield: number }
+  { shield: number, name: string }
 
 
 // global constants
@@ -294,7 +415,7 @@ const playerHeight = 80
 const playerWidth = 80
 
 
-const tree = new Quadtree({x: 0, y: 0, width: canvasWidth, height: canvasHeight }, 10, 4);
+const tree = new Quadtree({x: 0, y: 0, width: canvasWidth, height: canvasHeight }, 3, 4);
 
 
 const aN: (a:any) => boolean = n => !isNaN(n)
@@ -344,19 +465,19 @@ const changePosition = <T extends Object>(prev: T, changes: any): T  => {
 }
 
 
-const moveLeft = <U extends UnitPosition>(u: U , amt=3): U => 
+const moveLeft = <U extends UnitPosition>(u: U , amt=7): U => 
   ({...u, x: u.x > 0 ? u.x-= amt : 0})
 
 
-const moveRight = <U extends UnitPosition>(u: U, amt=3): U => 
+const moveRight = <U extends UnitPosition>(u: U, amt=7): U => 
   ({...u, x: u.x < (canvasWidth - playerWidth) ? u.x += amt : (canvasWidth - playerWidth)})
 
 
-const moveUp = <U extends UnitPosition>(u: U, amt=3): U  => 
+const moveUp = <U extends UnitPosition>(u: U, amt=7): U  => 
   ({...u, y: u.y >= (0) ? u.y -= amt : playerHeight})
 
 
-const moveDown = <U extends UnitPosition>(u: U, amt=3): U  => 
+const moveDown = <U extends UnitPosition>(u: U, amt=7): U  => 
   ({...u, y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight)})
 
 
@@ -437,14 +558,17 @@ const game: Game = () => {
 
   const createPlayer = (): Player => {
     return (
-    { shield: 
-      { bass: 0
-      , tenor: 0
-      , alto: 0
-      , soprano: 0
+    { name: 'player'
+    , shield: 
+      { 0: {clan: null, strength: 0}
+      , 1: {clan: null, strength: 0}
+      , 2: {clan: null, strength: 0}
+      , 3: {clan: null, strength: 0}
       }
-    , x: 50
-    , y: canvasHeight - 230 - 10
+    , width: playerWidth
+    , height: playerHeight
+    , x: canvasWidth - playerWidth
+    , y: 10
     , strength: 100
     , speed: 100
     , luck: 100
@@ -452,13 +576,28 @@ const game: Game = () => {
   }
 
 
-  const createDrone = (): Drone => {
-    return (
-      { x: Math.random() * canvasWidth
+  const createDrone = (defaults = {}): Drone => {
+    return Object.assign(
+      { name: 'drone'
+      , x: Math.random() * canvasWidth
       , y: Math.random() * canvasHeight
+      , width: 40
+      , height: 40
       , shield: 2
       , lastwalk: false
-      } )
+      }, <Drone>defaults )
+  }
+
+
+  const createShieldDrop = (defaults = {}) => {
+    return Object.assign(
+      { name: 'shield'
+      , clan: ''
+      , x: Math.random() * canvasWidth
+      , y: Math.random() * canvasHeight
+      , width: 40
+      , height: 40
+      }, defaults )
   }
 
 
@@ -594,7 +733,7 @@ const game: Game = () => {
   }
 
 
-  const updateStage: UpdateStage = (time, state, illustrate) => {
+  const drawStage: UpdateStage = (time, state, illustrate) => {
     illustrate( (ctx) => ctx.clearRect(0,0, canvasWidth, canvasHeight))
     openingRoom(time, state, illustrate )
   }
@@ -622,38 +761,116 @@ const game: Game = () => {
     return tree
   }
 
+  function addOpeningShieldsToTree(time, tree) {
 
-  const updateTreeIndices = <T>(state: State, tree: T) => {
-    throttle()
+    const clans = Object.keys(Clan).map(a => parseInt(a)).filter(aN)
+    const containerWidth = canvasWidth*2/3
+    const offsetWall = canvasWidth/3
+    const offsetCeiling = canvasHeight/3
+    const elWidth = containerWidth/clans.length
+    
+    for(let i = 0; i < clans.length; i++) {
+      const x = offsetWall + (i*elWidth)
+      const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
+      const radius = 1+ 40 * abs(sin((1+i)*tiny(time)))
+      tree.insert({name: `shield-${Clan[i]}`, x, y, width: radius/2, height: radius/2})
+    }
+
+    return tree
+  }
+
+
+  const updateTreeIndices = <T>(time, state: State, tree: T) => {
     let items: any[] = []
+    if ( state.level == 0 ) {
+      addOpeningShieldsToTree(time, tree)
+    } else {
+      items = items.concat(state.drones)
+    }
+
     items = items.concat(state.player)
-    items = items.concat(state.drones)
     return items.reduce(applyToTree, tree)
   }
 
 
   const checkCollisions = (state, tree) => {
+    throttle(5)
+    const {player} = state
     const intersections = tree.retrieve({
-      x: state.player.x,
-      y: state.player.y,
-      width: playerWidth,
-      height: playerHeight
+      x: player.x,
+      y: player.y,
+      width: player.width,
+      height: player.height
     });
 
-    if (intersections) {
-      console.log('intersections');
-      console.log(intersections);
+    const collides = (unit) => {
+      if (unit.name == 'player' ) 
+        return false
+
+      return !(
+        unit.x > player.x + player.width ||
+        unit.x + unit.width < player.x ||
+        unit.y > player.y + player.height ||
+        unit.y + unit.height < player.y
+      );
     }
+
+    const touches = intersections.filter(collides)
+    return touches
   }
+
+
+  const applyShield = (player: Player, clan: Clan, role: Role): Player => {
+    log(`Role.Bass`,Role.Bass)
+    log(`role`, role)
+    if  (player.shield[role].clan != clan) {
+      // Swap the previous shield type with the new one
+      player.shield[role].clan = clan
+      player.shield[role].strength = 2
+    }
+    player.shield[role].strength += 2
+    return player
+  }
+
+
+  const handleTouches = (state, touches): State => {
+    if ( state.level == 0) {
+      // opening room 
+      if (touches.length == 1) {
+        log(`you touched my butt`)
+        // first room is a bass shield pickup
+        const player = applyShield(state.player, touches[0].clan, Role.Bass)
+        return {...state, player, level: state.level + 1}
+      }
+    }
+    return state
+  }
+
+
+  const setupNextLevel = (state: State): State => {
+    const room = nextRoom( state.room.clan, state.room.role )
+    const drones = getDrones(state.level * 2)
+    return {...state, drones, room}
+  }
+
   
 
   const tick: HandleTick = (time, prev: State, draw) => {
     tree.clear()
-    const next = applyControls(time, prev)
-    updateTreeIndices(next, tree)
+    const currLevel = state.level
+    let next = applyControls(time, prev)
+    updateTreeIndices(time, next, tree)
+
+    const touches = checkCollisions(next, tree)
+
+    next = handleTouches(state, touches)
+
+    if ( currLevel != state.level ) {
+      next = setupNextLevel(state)
+    }
+    
     updateListeners(state)
-    updateStage(time, next, draw)
-    checkCollisions(next, tree)
+    drawStage(time, next, draw)
     requestAnimationFrame((ntime) => tick(ntime, next, draw))
   }
 
@@ -697,12 +914,16 @@ const game: Game = () => {
     const elWidth = containerWidth/clans.length
     
     illustrate((ctx) => drawTiles(time, ctx))
-    for( let i = 0; i < clans.length; i++) {
+
+    for(let i = 0; i < clans.length; i++) {
+     
       illustrate((ctx) => {
-        const radius = 40 * abs(sin((1+i)*tiny(time)))
         const x = offsetWall + (i*elWidth)
         const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
-        tree.insert({x, y, width: elWidth, height: elWidth});
+        const radius = 1+ 40 * abs(sin((1+i)*tiny(time)))
+        const unit = createShieldDrop({x, y, width: radius, height: radius, clan: Clan[i]})
+        unit.width = radius
+        unit.height = radius
 
         ctx.fillStyle = ctx.strokeStyle = getClanColor(i)
         ctx.arc(x, y, radius, 0, 2 * Math.PI)
