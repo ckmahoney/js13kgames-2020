@@ -286,20 +286,14 @@ var game = function () {
         };
     };
     var createPlayer = function () {
-        return ({ name: 'player',
-            shield: { 0: { clan: null, strength: 0 },
-                1: { clan: null, strength: 0 },
-                2: { clan: null, strength: 0 },
-                3: { clan: null, strength: 0 }
-            },
-            width: playerWidth,
+        var _a;
+        return ({ name: 'player', shield: (_a = {}, _a[Role.Bass] = { clan: null, strength: 0 }, _a[Role.Tenor] = { clan: null, strength: 0 }, _a[Role.Alto] = { clan: null, strength: 0 }, _a[Role.Soprano] = { clan: null, strength: 0 }, _a), width: playerWidth,
             height: playerHeight,
             x: canvasWidth - playerWidth,
             y: 10,
             strength: 100,
             speed: 100,
-            luck: 100
-        });
+            luck: 100 });
     };
     var createDrone = function (defaults) {
         if (defaults === void 0) { defaults = {}; }
@@ -424,7 +418,12 @@ var game = function () {
     };
     var drawStage = function (time, state, illustrate) {
         illustrate(function (ctx) { return ctx.clearRect(0, 0, canvasWidth, canvasHeight); });
-        openingRoom(time, state, illustrate);
+        if (state.level == 0) {
+            openingRoom(time, state, illustrate);
+        }
+        else {
+            stage(time, state, illustrate);
+        }
     };
     var stage = function (time, state, illustrate) {
         illustrate(drawRoom(time, state));
@@ -452,7 +451,7 @@ var game = function () {
             var x = offsetWall + (i * elWidth);
             var y = offsetCeiling; // * ((Math.cos(time * (i*0.25)/100)))
             var radius = 1 + 40 * abs(sin((1 + i) * tiny(time)));
-            tree.insert({ name: "shield-" + Clan[i], x: x, y: y, width: radius / 2, height: radius / 2 });
+            tree.insert({ name: "shield-" + Clan[i], clan: Clan[i], x: x, y: y, width: radius / 2, height: radius / 2 });
         }
         return tree;
     }
@@ -467,8 +466,7 @@ var game = function () {
         items = items.concat(state.player);
         return items.reduce(applyToTree, tree);
     };
-    var checkCollisions = function (state, tree) {
-        throttle(5);
+    var handleCollisions = function (state, tree) {
         var player = state.player;
         var intersections = tree.retrieve({
             x: player.x,
@@ -484,26 +482,27 @@ var game = function () {
                 unit.y > player.y + player.height ||
                 unit.y + unit.height < player.y);
         };
-        var touches = intersections.filter(collides);
-        return touches;
+        return handleTouches(state, intersections.filter(collides));
     };
     var applyShield = function (player, clan, role) {
-        log("Role.Bass", Role.Bass);
-        log("role", role);
+        var boon = 2;
         if (player.shield[role].clan != clan) {
             // Swap the previous shield type with the new one
             player.shield[role].clan = clan;
-            player.shield[role].strength = 2;
+            player.shield[role].strength = boon;
         }
-        player.shield[role].strength += 2;
+        else {
+            player.shield[role].strength += boon;
+        }
         return player;
     };
     var handleTouches = function (state, touches) {
+        if (touches.length == 0)
+            return state;
+        log("handling touches for " + touches.length + " collisions on level " + state.level);
         if (state.level == 0) {
-            // opening room 
+            // first room is a bass shield pickup
             if (touches.length == 1) {
-                log("you touched my butt");
-                // first room is a bass shield pickup
                 var player = applyShield(state.player, touches[0].clan, Role.Bass);
                 return __assign(__assign({}, state), { player: player, level: state.level + 1 });
             }
@@ -511,22 +510,27 @@ var game = function () {
         return state;
     };
     var setupNextLevel = function (state) {
+        log("setting up level " + state.level);
         var room = nextRoom(state.room.clan, state.room.role);
         var drones = getDrones(state.level * 2);
         return __assign(__assign({}, state), { drones: drones, room: room });
     };
     var tick = function (time, prev, draw) {
         tree.clear();
-        var currLevel = state.level;
         var next = applyControls(time, prev);
         updateTreeIndices(time, next, tree);
-        var touches = checkCollisions(next, tree);
-        next = handleTouches(state, touches);
-        if (currLevel != state.level) {
-            next = setupNextLevel(state);
+        next = handleCollisions(next, tree);
+        if (prev.level != next.level) {
+            log("prev.level:" + prev.level);
+            log("next.level:" + next.level);
+            next = setupNextLevel(next);
+            return requestAnimationFrame(function (ntime) { return tick(ntime, next, draw); });
         }
-        updateListeners(state);
+        log("drawing level " + state.level);
+        updateListeners(next);
         drawStage(time, next, draw);
+        // @ts-ignore
+        window.state = next;
         requestAnimationFrame(function (ntime) { return tick(ntime, next, draw); });
     };
     /** Grabs the rendering context to provide render callback. */

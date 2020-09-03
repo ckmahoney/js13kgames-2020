@@ -9,9 +9,11 @@ enum Role
 
 enum Clan
   { Blue
-  , Red
+  , Red 
   , Yellow
   }
+
+  
 
 
 type Clansmen = 
@@ -560,10 +562,10 @@ const game: Game = () => {
     return (
     { name: 'player'
     , shield: 
-      { 0: {clan: null, strength: 0}
-      , 1: {clan: null, strength: 0}
-      , 2: {clan: null, strength: 0}
-      , 3: {clan: null, strength: 0}
+      { [Role.Bass]: {clan: null, strength: 0}
+      , [Role.Tenor]: {clan: null, strength: 0}
+      , [Role.Alto]: {clan: null, strength: 0}
+      , [Role.Soprano]: {clan: null, strength: 0}
       }
     , width: playerWidth
     , height: playerHeight
@@ -735,7 +737,11 @@ const game: Game = () => {
 
   const drawStage: UpdateStage = (time, state, illustrate) => {
     illustrate( (ctx) => ctx.clearRect(0,0, canvasWidth, canvasHeight))
-    openingRoom(time, state, illustrate )
+    if (state.level == 0) {
+      openingRoom(time, state, illustrate)
+    } else {
+      stage(time, state, illustrate)
+    }
   }
 
 
@@ -773,7 +779,7 @@ const game: Game = () => {
       const x = offsetWall + (i*elWidth)
       const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
       const radius = 1+ 40 * abs(sin((1+i)*tiny(time)))
-      tree.insert({name: `shield-${Clan[i]}`, x, y, width: radius/2, height: radius/2})
+      tree.insert({name: `shield-${Clan[i]}`, clan: Clan[i], x, y, width: radius/2, height: radius/2})
     }
 
     return tree
@@ -793,8 +799,7 @@ const game: Game = () => {
   }
 
 
-  const checkCollisions = (state, tree) => {
-    throttle(5)
+  const handleCollisions = (state, tree): State => {
     const {player} = state
     const intersections = tree.retrieve({
       x: player.x,
@@ -815,30 +820,30 @@ const game: Game = () => {
       );
     }
 
-    const touches = intersections.filter(collides)
-    return touches
+    return handleTouches(state, intersections.filter(collides))
   }
 
 
   const applyShield = (player: Player, clan: Clan, role: Role): Player => {
-    log(`Role.Bass`,Role.Bass)
-    log(`role`, role)
+    const boon = 2
     if  (player.shield[role].clan != clan) {
       // Swap the previous shield type with the new one
       player.shield[role].clan = clan
-      player.shield[role].strength = 2
+      player.shield[role].strength = boon
+    } else {
+      player.shield[role].strength += boon
     }
-    player.shield[role].strength += 2
     return player
   }
 
-
   const handleTouches = (state, touches): State => {
+    if (touches.length == 0)
+      return state
+
+    log(`handling touches for ${touches.length} collisions on level ${state.level}`)
     if ( state.level == 0) {
-      // opening room 
+      // first room is a bass shield pickup
       if (touches.length == 1) {
-        log(`you touched my butt`)
-        // first room is a bass shield pickup
         const player = applyShield(state.player, touches[0].clan, Role.Bass)
         return {...state, player, level: state.level + 1}
       }
@@ -848,6 +853,7 @@ const game: Game = () => {
 
 
   const setupNextLevel = (state: State): State => {
+    log(`setting up level ${state.level}`)
     const room = nextRoom( state.room.clan, state.room.role )
     const drones = getDrones(state.level * 2)
     return {...state, drones, room}
@@ -857,20 +863,24 @@ const game: Game = () => {
 
   const tick: HandleTick = (time, prev: State, draw) => {
     tree.clear()
-    const currLevel = state.level
     let next = applyControls(time, prev)
     updateTreeIndices(time, next, tree)
-
-    const touches = checkCollisions(next, tree)
-
-    next = handleTouches(state, touches)
-
-    if ( currLevel != state.level ) {
-      next = setupNextLevel(state)
-    }
+    next = handleCollisions(next, tree)
     
-    updateListeners(state)
+
+    if ( prev.level != next.level ) {
+      log(`prev.level:${prev.level}`)
+      log(`next.level:${next.level}`)
+      next = setupNextLevel(next)
+      return requestAnimationFrame((ntime) => tick(ntime, next, draw))
+    }
+
+    log(`drawing level ${state.level}`)
+    
+    updateListeners(next)
     drawStage(time, next, draw)
+    // @ts-ignore
+    window.state = next
     requestAnimationFrame((ntime) => tick(ntime, next, draw))
   }
 
