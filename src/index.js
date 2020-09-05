@@ -1,3 +1,4 @@
+"use strict";
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
         for (var s, i = 1, n = arguments.length; i < n; i++) {
@@ -9,7 +10,9 @@ var __assign = (this && this.__assign) || function () {
     };
     return __assign.apply(this, arguments);
 };
-console.clear();
+exports.__esModule = true;
+require("./sounds");
+console.log('loaded!');
 var Role;
 (function (Role) {
     Role[Role["Bass"] = 0] = "Bass";
@@ -172,13 +175,6 @@ Quadtree.prototype.clear = function () {
     }
     this.nodes = [];
 };
-//export for commonJS or browser
-if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-    module.exports = Quadtree;
-}
-else {
-    window.Quadtree = Quadtree;
-}
 // global constants
 var canvasWidth = 800;
 var canvasHeight = 450;
@@ -515,7 +511,7 @@ var game = function () {
         var drones = getDrones(state.level * 2);
         return __assign(__assign({}, state), { drones: drones, room: room });
     };
-    var tick = function (time, prev, draw) {
+    var loop = function (time, prev, draw) {
         tree.clear();
         var next = applyControls(time, prev);
         updateTreeIndices(time, next, tree);
@@ -524,14 +520,12 @@ var game = function () {
             log("prev.level:" + prev.level);
             log("next.level:" + next.level);
             next = setupNextLevel(next);
-            return requestAnimationFrame(function (ntime) { return tick(ntime, next, draw); });
+            return requestAnimationFrame(function (ntime) { return loop(ntime, next, draw); });
         }
         log("drawing level " + state.level);
         updateListeners(next);
         drawStage(time, next, draw);
-        // @ts-ignore
-        window.state = next;
-        requestAnimationFrame(function (ntime) { return tick(ntime, next, draw); });
+        requestAnimationFrame(function (ntime) { return loop(ntime, next, draw); });
     };
     /** Grabs the rendering context to provide render callback. */
     var go = function (state, tick) {
@@ -612,7 +606,7 @@ var game = function () {
             role: altRoles[Number(coinToss())]
         });
     };
-    go(state, tick);
+    go(state, loop);
 };
 // todo decide if it is worth having a global async controls or use something else
 game.controls = [];
