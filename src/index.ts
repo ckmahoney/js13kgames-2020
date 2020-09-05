@@ -1,4 +1,7 @@
-console.clear()
+import play from './sounds'
+console.log('loaded!')  
+document?.querySelector("#play").addEventListener('click', play)
+
 enum Role 
   { Bass
   , Tenor
@@ -12,8 +15,6 @@ enum Clan
   , Red 
   , Yellow
   }
-
-  
 
 
 type Clansmen = 
@@ -132,7 +133,6 @@ interface UpdateListeners
     { (state: State): Controls
       prev?: Controls
       listen?: (e: KeyboardEvent) => SideFX }
-
 
 type Rect = 
   { x: number
@@ -372,7 +372,7 @@ interface QTInterface
         
         this.objects = [];
      
-        for(var i=0; i < this.nodes.length; i++) {
+        for(let i=0; i < this.nodes.length; i++) {
             if(this.nodes.length) {
                 this.nodes[i].clear();
               }
@@ -380,14 +380,6 @@ interface QTInterface
 
         this.nodes = [];
     };
-
-    //export for commonJS or browser
-    if(typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-        module.exports = Quadtree;
-    } else {
-        window.Quadtree = Quadtree;    
-    }
-
 
 
 type ModulationMap =
@@ -767,6 +759,7 @@ const game: Game = () => {
     return tree
   }
 
+
   function addOpeningShieldsToTree(time, tree) {
 
     const clans = Object.keys(Clan).map(a => parseInt(a)).filter(aN)
@@ -836,6 +829,7 @@ const game: Game = () => {
     return player
   }
 
+
   const handleTouches = (state, touches): State => {
     if (touches.length == 0)
       return state
@@ -853,35 +847,26 @@ const game: Game = () => {
 
 
   const setupNextLevel = (state: State): State => {
-    log(`setting up level ${state.level}`)
     const room = nextRoom( state.room.clan, state.room.role )
     const drones = getDrones(state.level * 2)
     return {...state, drones, room}
   }
 
   
-
-  const tick: HandleTick = (time, prev: State, draw) => {
+  const loop: HandleTick = (time, prev: State, draw) => {
     tree.clear()
     let next = applyControls(time, prev)
     updateTreeIndices(time, next, tree)
     next = handleCollisions(next, tree)
-    
 
     if ( prev.level != next.level ) {
-      log(`prev.level:${prev.level}`)
-      log(`next.level:${next.level}`)
       next = setupNextLevel(next)
-      return requestAnimationFrame((ntime) => tick(ntime, next, draw))
+      return requestAnimationFrame((ntime) => loop(ntime, next, draw))
     }
 
-    log(`drawing level ${state.level}`)
-    
     updateListeners(next)
     drawStage(time, next, draw)
-    // @ts-ignore
-    window.state = next
-    requestAnimationFrame((ntime) => tick(ntime, next, draw))
+    requestAnimationFrame((ntime) => loop(ntime, next, draw))
   }
 
 
@@ -979,8 +964,9 @@ const game: Game = () => {
       })
   }
 
-  go(state, tick)
+  go(state, loop)
 }
+
 
 // todo decide if it is worth having a global async controls or use something else
 game.controls = []

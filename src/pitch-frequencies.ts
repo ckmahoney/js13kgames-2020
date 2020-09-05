@@ -1,4 +1,4 @@
-export let frequencies =
+export const frequencies =
 { C0: 16.2,
   Db0: 17.17,
   D0: 18.19,

@@ -1,4 +1,4 @@
-import { frequencies } from './pitch-frequencies.ts'
+import { frequencies } from './pitch-frequencies'
 
 
 type Milliseconds = number;
@@ -187,7 +187,7 @@ let next: Next = (limit=1, list:Freq[]=[], mod, n=0): any => {
 }
 
 
-let transpose = (freq, steps): Freq   => {
+export let transpose = (freq, steps): Freq   => {
   let modTable = transpositionMap() 
   let bound = modTable.length - 1
   if (steps <= bound) {
@@ -247,6 +247,7 @@ let nameToFreq = (pitchclass) =>
 
 
 // adapted from wikipedia (Interval, music theory)
+// risig is the type of tritone to select. true for rising, false for falling 
 let transpositionMap = (rising = true) =>
   [ 1, (16/15), (9/8), (6/5), (5/4), (4/3), rising ? (45/32) : (25/18)]
 
