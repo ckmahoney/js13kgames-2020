@@ -7,3 +7,48 @@
 	[x] Add player movement controls
 	[x] Add drone movement
 	[] Implement touch attacks
+
+
+[] Play complete soundtrack
+  [] of same clan
+  [] of mixed clans
+  [] of mixed volumes
+
+
+[] Create pickups
+  [] musical element
+  [] player buff
+
+
+theme: 404
+  mechanic is as follows
+  The player must complete the first boss with all four parts assembled
+  The next boss must be finished with no parts assembld
+  The final boss must be finished with all four parts assembled
+
+
+player attack
+  Drops a bomb with burst radius, cooldown is 2s
+  ?lazer pickup only
+
+
+monster attack
+  projectile
+  summons
+  burst
+  melee
+  theft
+
+
+player buffs
+
+
+// lazer upgrades
+// bloodline - when the completed shield is destroyed, collecting a child shield of same type is 1.5x stronger
+// shots - consumable manual burst lazer shots
+// heatup - lowers the cooldown time for bomb
+
+
+monster buffs
+// two claw - attacks damage a secondary shield type
+// curse - next drop is guaranteed to be monster buff
