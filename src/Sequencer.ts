@@ -1,3 +1,4 @@
+  import { transpose } from './music'
   /*
    * Private stuffz
    */
@@ -29,40 +30,21 @@
     this.duration = duration
   }
  
-  // convert a note name (e.g. 'A4') to a frequency (e.g. 440.00)
-  Note.getFrequency = function( name ) {
-    var couple = name.split(/(\d+)/),
-      distance = offsets[ couple[ 0 ] ],
-      octaveDiff = ( couple[ 1 ] || octaveOffset ) - octaveOffset,
-      freq = middleC * Math.pow( Math.pow( 2, 1 / 12 ), distance );
-    return freq * Math.pow( 2, octaveDiff );
-  };
- 
-  // convert a duration string (e.g. 'q') to a number (e.g. 1)
-  // also accepts numeric strings (e.g '0.125')
-  Note.getDuration = function( symbol ) {
-    return /^[0-9.]+$/.test( symbol ) ? parseFloat( symbol ) :
-      symbol.toLowerCase().split('').reduce(function( prev, curr ) {
-        return prev + ( curr === 'w' ? 4 : curr === 'h' ? 2 :
-          curr === 'q' ? 1 : curr === 'e' ? 0.5 :
-          curr === 's' ? 0.25 : 0 ); 
-      }, 0 );
-  };
- 
+  
+ const ac = new AudioContext()
  
   /*
    * Sequence class
    */
  
- function Sequence( ac, tempo, arr ) {
-    this.ac = ac || new AudioContext();
+ export function Sequence( tempo, notes: [number, number][] = []) {
+    this.ac = ac;
     this.createFxNodes();
     this.tempo = tempo || 120;
     this.loop = true;
     this.smoothing = 0;
     this.staccato = 0;
-    this.notes = [];
-    this.push.apply( this, arr || [] );
+    this.notes = notes;
   }
  
   // create gain and EQ nodes, then connect 'em
@@ -81,9 +63,9 @@
  
   // accepts Note instances or strings (e.g. 'A4 e')
   Sequence.prototype.push = function() {
-    Array.prototype.forEach.call( arguments, function( [freq, duration] ) {
-      console.log('pushing freq, duration', freq, duration)
-      this.notes.push( [freq, duration] );
+    Array.prototype.forEach.call( arguments, function( point ) {
+      console.log('pushing freq, duration', point[0], point[1])
+      this.notes.push(point);
     }.bind( this ));
     return this;
   };
@@ -102,6 +84,9 @@
   Sequence.prototype.scheduleNote = function( index, when ) {
     var duration = 60 / this.tempo * this.notes[ index ][1],
       cutoff = duration * ( 1 - ( this.staccato || 0 ) );
+
+    console.log(`looking for ntoe ${index}`)
+    console.log(this.notes[index])
  
     this.setFrequency( this.notes[ index ][0], when );
  
@@ -147,6 +132,7 @@
  
   // run through all notes in the sequence and schedule them
   Sequence.prototype.play = function( when ) {
+    console.log(`playing with notes`, this.notes)
     when = typeof when === 'number' ? when : this.ac.currentTime;
  
     this.createOscillator();
@@ -174,68 +160,64 @@
   };
 
  
-var ac = new AudioContext(),
-  when = ac.currentTime,
-  tempo = 132,
+const when = ac.currentTime,
+  tempo = 132;
+
+  let 
   sequence1,
   sequence2,
-  sequence3,
-  lead = [
-    125,
-    535,
-    922,
-    321,
-    756
-  ],
-  harmony = [
-    550,
-    290,
-    903,
-    911,
-    0,
-    333
-  ],
-  bass =
-    [ 220
-    , 250
-    , 280
-    , 310
-    , 0
-    , 0
-    , 310
-    , 250
-    , 0
-    , 0
-  ];
- 
-const duration = 1
-sequence1 = new Sequence( ac, tempo, lead.map(n => [n,duration]) );
-sequence2 = new Sequence( ac, tempo, harmony.map(n => [n,duration]) );
-sequence3 = new Sequence( ac, tempo, bass.map(n => [n,duration]) );
- 
-sequence1.staccato = 0.55;
-sequence2.staccato = 0.55;
-sequence3.staccato = 0.05;
-sequence3.smoothing = 0.4;
- 
-sequence1.gain.gain.value = 1.0;
-sequence2.gain.gain.value = 0.8;
-sequence3.gain.gain.value = 0.65;
- 
-sequence1.mid.frequency.value = 800;
-sequence1.mid.gain.value = 3;
- 
-sequence2.mid.frequency.value = 1200;
-sequence3.mid.gain.value = 3;
- 
-sequence3.bass.gain.value = 6;
-sequence3.bass.frequency.value = 80;
-sequence3.mid.gain.value = -6;
-sequence3.mid.frequency.value = 500;
-sequence3.treble.gain.value = -2;
-sequence3.treble.frequency.value = 1400;
- 
-sequence1.play( when );
-// delay by 16 beats
-sequence2.play( when + ( 60 / tempo ) * 16 );
-sequence3.play( when );
+  sequence3;
+
+
+  const lead = (freq) => {
+    return (
+    [11, 10, 9, 8, 7, 7, 5, 2 ])
+    .map((interval,duration) => [transpose(freq, interval), 1])
+  }
+
+
+  const harmony = (freq) => {
+    return ([7, 7, 5, 11, 7, 4, 7, 9])
+    .map((interval,duration) => [transpose(freq, interval), 1])
+  }
+
+  const bass = (freq) => {
+    return ([0, 0, 7, 5, 0, 0, 5, 7])
+    .map((interval,duration) => [transpose(freq, interval), 1])
+  }
+
+
+ export const playMusic = () => {
+console.log(`playing`)
+  sequence1 = new Sequence( tempo, <[number,number][]>lead(512) );
+  sequence2 = new Sequence( tempo, <[number,number][]>harmony(1024) );
+  sequence3 = new Sequence( tempo, <[number,number][]>bass(64) );
+   
+  sequence1.staccato = 0.55;
+  sequence2.staccato = 0.55;
+  sequence3.staccato = 0.05;
+  sequence3.smoothing = 0.4;
+   
+  sequence1.gain.gain.value = 1.0;
+  sequence2.gain.gain.value = 0.8;
+  sequence3.gain.gain.value = 0.65;
+   
+  sequence1.mid.frequency.value = 800;
+  sequence1.mid.gain.value = 3;
+   
+  sequence2.mid.frequency.value = 1200;
+  sequence3.mid.gain.value = 3;
+   
+  sequence3.bass.gain.value = 6;
+  sequence3.bass.frequency.value = 80;
+  sequence3.mid.gain.value = -6;
+  sequence3.mid.frequency.value = 500;
+  sequence3.treble.gain.value = -2;
+  sequence3.treble.frequency.value = 1400;
+   
+  sequence1.play( when );
+  // delay by 16 beats
+  sequence2.play( when + ( 60 / tempo ) * 16 );
+  sequence3.play( when );
+  return
+ }

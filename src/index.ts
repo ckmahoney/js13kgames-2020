@@ -1,5 +1,6 @@
 import soundtrack from './sounds'
-document?.querySelector("#play").addEventListener('click', soundtrack)
+import {Sequence, playMusic} from './Sequencer'
+document?.querySelector("#play").addEventListener('click', playMusic)
 
 enum Role 
   { Bass
@@ -139,28 +140,6 @@ type Rect =
   , dx: number
   , dy: number 
   }
-
-// const getIndex = (qt, target: Rect) => {
-//   const verticalMidpoint = target.x + (target.dx / 2)
-//   const horizontalMidpoint = target.y + (target.dy / 2)
-//   const startIsNorth = qt.y < horizontalMidpoint,
-//     startIsWest = qt.x < verticalMidpoint,
-//     endIsSouth = qt.y + qt.dy > horizontalMidpoint,
-//     endIsEast = qt.x + qt.dx > verticalMidpoint
-
-//   // const startIsNorth = bounds.y < horizontalMidpoint,
-//   //       startIsWest = bounds.x < verticalMidpoint,
-//   //       endIsEast = bounds.x + bounds.width > verticalMidpoint,
-//   //       endIsSouth = bounds.y + bounds.height > horizontalMidpoint;   
-
-//    return( 
-//       [ startIsNorth && endIsEast
-//       , startIsWest && startIsNorth
-//       , startIsWest && endIsSouth
-//       , endIsEast && endIsSouth] )
-//    .map((inLocation, i) => inLocation ? i : NaN).filter(aN)
-// }
-
 
 
 interface QTInterface
