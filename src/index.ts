@@ -1,6 +1,5 @@
-import play from './sounds'
-console.log('loaded!')  
-document?.querySelector("#play").addEventListener('click', play)
+import soundtrack from './sounds'
+document?.querySelector("#play").addEventListener('click', soundtrack)
 
 enum Role 
   { Bass
@@ -834,7 +833,6 @@ const game: Game = () => {
     if (touches.length == 0)
       return state
 
-    log(`handling touches for ${touches.length} collisions on level ${state.level}`)
     if ( state.level == 0) {
       // first room is a bass shield pickup
       if (touches.length == 1) {

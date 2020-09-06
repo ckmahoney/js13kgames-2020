@@ -224,7 +224,6 @@ let selectHarmonicPoints = (frequencies, n=0) =>
   }, [])
 
 
-
 let pitchclassToNote = (p: string | PitchClass): string => {
   if (typeof p == 'string') 
     return p
