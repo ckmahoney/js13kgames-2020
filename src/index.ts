@@ -544,7 +544,8 @@ function getSynth(role: Role): Synth {
   const updateSound = (state: State, ctx: AudioContext): SideFX => {
     const { assemblage } = state
 
-    const now = ctx.currentTime
+    const now = ctx.currentTime*1000
+    log(`current time is:${now}`)
     Object.entries(assemblage).forEach(([role, part]) => {
       if (part.strength == 0) {
         if (typeof part.sequencer != 'undefined') {
@@ -555,20 +556,21 @@ function getSynth(role: Role): Synth {
       }
 
       const synth = getSynth(Role[role])
-      const beat = getBeatIndex(now, part.bpm, part.melody || [])
+      const beat = getBeatIndex(now, part.bpm, part.melody)
+  throttle(5)
 
       log(`beat:${beat} looking at part for soundtrack:${role}`)
       log(part)
 
       // start the first one
       if (typeof part.sequencer == 'undefined' && beat === 0) {
-        log(`initializing part:${role}`)
         const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
         const play = synth(now, part.bpm, notes)
         part.sequencer = play()
-        part.sequencer.osc.onended = part.next
-        part.next = () => {
+        log(part.sequencer.osc)
+        part.sequencer.osc.onended = () => {
           const play = synth(now, part.bpm, notes)
+          play()
           return play()
         }
         return
@@ -587,9 +589,10 @@ function getSynth(role: Role): Synth {
         log(`initializing next part for:${role}`)
         const beatWidth = getBeatLength(part.bpm)
         const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
-        part.sequencer.osc.onended = part.next
-        part.next = () => {
+        log(part.sequencer.osc)
+        part.sequencer.osc.onended = () => {
           const play = synth(now, part.bpm, notes)
+          play()
           return play()
         }
       }

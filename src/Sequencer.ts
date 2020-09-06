@@ -193,10 +193,12 @@ export const partBass = (when, tempo, melody: Note[]) => {
 export function getBeatIndex(time: number, bpm, notes = []) {
   const beatDuration = getBeatLength(bpm)
   const barDuration = beatDuration * notes.length
+  console.log(`says barDuration:${barDuration}`)
   const location = time % barDuration
+  console.log(`location:${location}`)
 
   return notes.findIndex((note, i) => 
-    (location <= (i+1) * beatDuration))
+    location <= ((i+1) * beatDuration))
 }
 
 
