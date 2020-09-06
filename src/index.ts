@@ -566,6 +566,7 @@ function getSynth(role: Role): Synth {
         const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
         const play = synth(now, part.bpm, notes)
         part.sequencer = play()
+        part.sequencer.osc.onended = part.next
         part.next = () => {
           const play = synth(now, part.bpm, notes)
           return play()
@@ -586,6 +587,7 @@ function getSynth(role: Role): Synth {
         log(`initializing next part for:${role}`)
         const beatWidth = getBeatLength(part.bpm)
         const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
+        part.sequencer.osc.onended = part.next
         part.next = () => {
           const play = synth(now, part.bpm, notes)
           return play()
