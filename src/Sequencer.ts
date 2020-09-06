@@ -4,7 +4,7 @@ import { transpose } from './music'
 export const ac = new AudioContext()
 
 
-type Note = [number, number]
+type Note = [number, number] | number[][]
 
 
 function Note( freq, duration ) {
@@ -12,7 +12,7 @@ function Note( freq, duration ) {
 }
 
 
-export function Sequence( tempo, notes: [number, number][] = []) {
+export function Sequence( tempo, notes: Note[] = []) {
   this.ac = ac;
   this.createFxNodes();
   this.tempo = tempo || 120;
@@ -24,8 +24,8 @@ export function Sequence( tempo, notes: [number, number][] = []) {
 
 // create gain and EQ nodes, then connect 'em
 Sequence.prototype.createFxNodes = function() {
-  var eq = [ [ 'bass', 100 ], [ 'mid', 1000 ] , [ 'treble', 2500 ] ],
-    prev = this.gain = this.ac.createGain();
+  const eq = [ [ 'bass', 100 ], [ 'mid', 1000 ] , [ 'treble', 2500 ] ]
+  let prev = this.gain = this.ac.createGain();
   eq.forEach(function( config, filter ) {
     filter = this[ config[ 0 ] ] = this.ac.createBiquadFilter();
     filter.type = 'peaking';
@@ -79,7 +79,7 @@ Sequence.prototype.getSlideStartDelay = function( duration ) {
 // slide the note at <index> into the next note at the given time,
 // and apply staccato effect if needed
 Sequence.prototype.slide = function( index, when, cutoff ) {
-  var next = this.getNextNote( index ),
+  const next = this.getNextNote( index ),
     start = this.getSlideStartDelay( cutoff );
   this.setFrequency( this.notes[ index ][0], when + start );
   this.rampFrequency( next[0], when + cutoff );
@@ -102,6 +102,7 @@ Sequence.prototype.rampFrequency = function( freq, when ) {
 Sequence.prototype.play = function( when ) {
   when = typeof when === 'number' ? when : this.ac.currentTime;
 
+  console.log(`play: this.next:${typeof this.next}`)
   this.createOscillator();
   this.osc.start( when );
 
@@ -110,7 +111,10 @@ Sequence.prototype.play = function( when ) {
   }.bind( this ));
 
   this.osc.stop( when );
-  this.osc.onended = this.loop ? this.play.bind( this, when ) : null;
+  if ( typeof this.next != 'undefined') {
+    console.log(`enqueuing next seq`)
+    this.osc.onended = this.play.bind( this.next, when )
+  }
 
   return this;
 };
@@ -128,14 +132,14 @@ Sequence.prototype.stop = function() {
 };
 
 
-const lead = (freq, duration = 1, notes = [4, 9, 9, 7, 4, 9, 10, 10, 11 ]): Note[] =>
-  notes.map((interval,i) => [transpose(freq, interval), duration])
+// const lead = (freq, duration = 1, notes = [4, 9, 9, 7, 4, 9, 10, 10, 11 ]): Note[] =>
+//   notes.map((interval,i) => [transpose(freq, interval), duration])
 
-const harmony = (freq, duration = 1, notes = [0, 7, 5, 11, 7, 4, 7, 9]): Note[] =>
-  notes.map((interval,i) => [transpose(freq, interval), duration])
+// const harmony = (freq, duration = 1, notes = [0, 7, 5, 11, 7, 4, 7, 9]): Note[] =>
+//   notes.map((interval,i) => [transpose(freq, interval), duration])
 
-const bass = (freq, duration = 1, notes = [12, 0, 10, 12, 0, 0, 7, 5]): Note[] =>
-  notes.map((interval,i) => [transpose(freq, interval), duration])
+// const bass = (freq, duration = 1, notes = [12, 0, 10, 12, 0, 0, 7, 5]): Note[] =>
+//   notes.map((interval,i) => [transpose(freq, interval), duration])
 
 
 export const intervalsToMelody = (root, duration = (i) => 1, intervals: number[] = []): Note[] => 
@@ -149,7 +153,10 @@ export const partLead = (when, tempo, melody: Note[]) => {
   seq.gain.gain.value = 1.0;
   seq.mid.frequency.value = 800;
   seq.mid.gain.value = 3;
-  return () => seq.play(when)
+  return function play() {
+    seq.play(when)
+    return seq
+  }
 }
 
 
@@ -158,7 +165,10 @@ export const partHarmony = (when, tempo, melody: Note[]) => {
   seq.mid.frequency.value = 1200;
   seq.gain.gain.value = 0.8;
   seq.staccato = 0.55;
-  return () => seq.play(when)
+  return function play() {
+    seq.play(when)
+    return seq
+  }
   // seq.play( when + ( 60 / tempo ) * 16 );
 }
 
@@ -177,7 +187,25 @@ export const partBass = (when, tempo, melody: Note[]) => {
   seq.mid.frequency.value = 500;
   seq.treble.gain.value = -2;
   seq.treble.frequency.value = 1400;
-  return () => seq.play(when)
+  return function play() {
+    seq.play(when)
+    return seq
+  }
+}
+
+
+export function getBeatIndex(time: number, bpm, notes = []) {
+  const beatDuration = getBeatLength(bpm)
+  const barDuration = beatDuration * notes.length
+  const location = time % barDuration
+
+  return notes.findIndex((note, i) => 
+    (location <= (i+1) * beatDuration))
+}
+
+
+export function getBeatLength(bpm) {
+  return (60/bpm)*1000
 }
 
 

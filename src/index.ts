@@ -1,11 +1,11 @@
 import soundtrack from './sounds'
-import {Sequence, partLead, partHarmony, partBass, intervalsToMelody, ac as audioContext } from './Sequencer'
+import {Sequence, partLead, partHarmony, partBass, intervalsToMelody, ac as audioContext, getBeatLength, getBeatIndex} from './Sequencer'
 
 enum Role 
-  { Bass
-  , Tenor
-  , Alto
-  , Soprano
+  { bass
+  , tenor
+  , alto
+  , soprano
   }
 
 
@@ -34,10 +34,10 @@ type ShieldMeta =
 
 
 type Shield = 
-  { [Role.Bass]: ShieldMeta
-  , [Role.Tenor]: ShieldMeta
-  , [Role.Alto]: ShieldMeta
-  , [Role.Soprano]: ShieldMeta
+  { [Role.bass]: ShieldMeta
+  , [Role.tenor]: ShieldMeta
+  , [Role.alto]: ShieldMeta
+  , [Role.soprano]: ShieldMeta
   }
 
 
@@ -53,6 +53,7 @@ type State =
   , fx: any[]
   , room: Room
   , level: number
+  , assemblage: Assemblage
   }
 
 
@@ -372,7 +373,7 @@ type Empty = null | undefined
 type SideFX = void
 
 
-type Player = UnitPosition & Stats & { name: string, shield: Shield }
+type Player = UnitPosition & Stats & { name: string }
 
 
 type Drone = UnitPosition &
@@ -510,6 +511,87 @@ const game: Game = () => {
       })
   }
 
+
+
+
+
+// function playEnsemble(ensemble) {
+//   const { tonic, bpm, voices } = ensemble
+//   const now = audioContext.currentTime
+
+//   return Object.entries(voices).map(([voice, melody]) => {
+//     const notes = intervalsToMelody(ensemble.tonic, (i) => 1/(i+1), melody)
+//     const synth = getSynth(Role[voice])
+//     const play = synth(now, ensemble.bpm, notes)
+//     return play()
+//   })
+// }
+
+
+type Synth = typeof partBass | typeof partHarmony | typeof partLead
+
+function getSynth(role: Role): Synth {
+  const roles = 
+    { 'bass': partBass
+    , 'tenor': partHarmony
+    , 'alto': partLead
+    , 'sorpano': partHarmony
+    }
+    return (roles[role] || partHarmony)
+}
+
+
+const updateSound = (time, state): State => {
+  return state
+}
+
+
+  const applySound = (time, state: State, ctx: AudioContext): SideFX => {
+    const { assemblage } = state
+
+    const now = ctx.currentTime
+    Object.entries(assemblage).forEach(([role, part]) => {
+      if (part.strength == 0) {
+        if (typeof part.sequencer != 'undefined') {
+          part.sequencer.stop()
+          delete part.sequencer
+        }
+        return
+      }
+
+      const synth = getSynth(Role[role])
+      const beat = getBeatIndex(now, part.bpm, part.notes || [])
+
+      log(`looking at role:${role}`)
+      log(`looking at part:`,part)
+
+      // start the first one
+      if (typeof part.sequencer == 'undefined' && beat === 0) {
+        const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
+        const play = synth(now, part.bpm, notes)
+        part.sequencer = play()
+        return
+      }
+
+      // start the next one 
+      if ((typeof part.next !== 'undefined') && (beat === 0)) {
+        part.sequencer = part.next()
+        delete part.next
+        return
+      }
+
+      // set up the next loop
+      if ((typeof part.next !== 'undefined') && beat == (part.notes.length - 1)) {
+        const beatWidth = getBeatLength(part.bpm)
+        const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
+        part.next = () => {
+          const play = synth(now, part.bpm, notes)
+          return play()
+        }
+      }
+    })
+  }
+
   
   const createRoom: CreateRoom = (clan, role) => (
     { clan
@@ -517,25 +599,10 @@ const game: Game = () => {
     })
 
 
-  const createShield = () => {
-    return {
-      bass: 0,
-      tenor: 0,
-      alto: 0,
-      soprano: 0
-    }
-  }
-
 
   const createPlayer = (): Player => {
     return (
     { name: 'player'
-    , shield: 
-      { [Role.Bass]: {clan: null, strength: 0}
-      , [Role.Tenor]: {clan: null, strength: 0}
-      , [Role.Alto]: {clan: null, strength: 0}
-      , [Role.Soprano]: {clan: null, strength: 0}
-      }
     , width: playerWidth
     , height: playerHeight
     , x: canvasWidth - playerWidth
@@ -554,13 +621,12 @@ const game: Game = () => {
       , y: Math.random() * canvasHeight
       , width: 40
       , height: 40
-      , shield: 2
       , lastwalk: false
       }, <Drone>defaults )
   }
 
 
-  const createShieldDrop = (defaults = {}) => {
+  const createMusicDrop = (defaults = {}) => {
     return Object.assign(
       { name: 'shield'
       , clan: ''
@@ -737,8 +803,7 @@ const game: Game = () => {
   }
 
 
-  function addOpeningShieldsToTree(time, tree) {
-
+  function addOpeningElementsToTree(time, tree) {
     const clans = Object.keys(Clan).map(a => parseInt(a)).filter(aN)
     const containerWidth = canvasWidth*2/3
     const offsetWall = canvasWidth/3
@@ -756,10 +821,11 @@ const game: Game = () => {
   }
 
 
+  /* Global handler for store state updates */
   const updateTreeIndices = <T>(time, state: State, tree: T) => {
     let items: any[] = []
-    if ( state.level == 0 ) {
-      addOpeningShieldsToTree(time, tree)
+    if (state.level == 0) {
+      addOpeningElementsToTree(time, tree)
     } else {
       items = items.concat(state.drones)
     }
@@ -769,7 +835,7 @@ const game: Game = () => {
   }
 
 
-  const handleCollisions = (state, tree): State => {
+  const handleCollisions = (state, tree): any[] => {
     const {player} = state
     const intersections = tree.retrieve({
       x: player.x,
@@ -790,20 +856,27 @@ const game: Game = () => {
       );
     }
 
-    return handleTouches(state, intersections.filter(collides))
+    return intersections.filter(collides)
   }
 
 
-  const applyShield = (player: Player, clan: Clan, role: Role): Player => {
-    const boon = 2
-    if  (player.shield[role].clan != clan) {
-      // Swap the previous shield type with the new one
-      player.shield[role].clan = clan
-      player.shield[role].strength = boon
+  const addToAssemblage = (assemblage: Assemblage, clan: Clan, role: Role, amt = 2): Assemblage => {
+    log(`assemblage[Role[role]]`,assemblage[Role[role]])
+    log(`Role[Role.Bass]`,Role[Role.bass])
+    log(`Role[0]`,Role[0])
+    if  (assemblage[Role[role]].clan != clan) {
+      const preset = Presets[Clan[clan]]
+      console.log(`using preset`,preset)
+      // Swap the previous type with the new one
+      assemblage[role].clan = clan
+      assemblage[role].strength = amt
+      assemblage[role].bpm = preset.bpm
+      assemblage[role].tonic = preset.tonic
+      assemblage[role].melody = preset.voices[role]
     } else {
-      player.shield[role].strength += boon
+      assemblage[role].strength += amt
     }
-    return player
+    return assemblage
   }
 
 
@@ -811,11 +884,13 @@ const game: Game = () => {
     if (touches.length == 0)
       return state
 
-    if ( state.level == 0) {
+    if (state.level == 0) {
       // first room is a bass shield pickup
       if (touches.length == 1) {
-        const player = applyShield(state.player, touches[0].clan, Role.Bass)
-        return {...state, player, level: state.level + 1}
+        const element = touches[0]
+        log(`picked element`, element)
+        const assemblage = addToAssemblage(state.assemblage, element.clan, Role.bass)
+        return {...state, assemblage, level: state.level + 1}
       }
     }
     return state
@@ -832,8 +907,13 @@ const game: Game = () => {
   const loop: HandleTick = (time, prev: State, draw) => {
     tree.clear()
     let next = applyControls(time, prev)
+    next = updateSound(time, next)
+    applySound(time, next, audioContext)
     updateTreeIndices(time, next, tree)
-    next = handleCollisions(next, tree)
+    const collisions = handleCollisions(next, tree)
+    if (collisions.length > 0) {
+      next = handleTouches(state, collisions)
+    }
 
     if ( prev.level != next.level ) {
       next = setupNextLevel(next)
@@ -870,6 +950,12 @@ const game: Game = () => {
   const controls: Controls = []
   const state: State = 
     { player: createPlayer()
+    , assemblage:
+        { bass: <SoundSource>{ strength: 0 }
+        , tenor: <SoundSource>{ strength: 0 }
+        , alto: <SoundSource>{ strength: 0 }
+        , soprano: <SoundSource>{ strength: 0 }
+        }
     , drones: []
     , fx: []
     , room: <Room><unknown>{ clan: null, role: null }
@@ -892,7 +978,7 @@ const game: Game = () => {
         const x = offsetWall + (i*elWidth)
         const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
         const radius = 1+ 40 * abs(sin((1+i)*tiny(time)))
-        const unit = createShieldDrop({x, y, width: radius, height: radius, clan: Clan[i]})
+        const unit = createMusicDrop({x, y, width: radius, height: radius, clan: Clan[i]})
         unit.width = radius
         unit.height = radius
 
@@ -950,54 +1036,74 @@ const getSoundtrackParts = (clan: Clan, role: Role): [number,number][] => {
 }
 
 
-const Yellow = 
-  { tonic: 80
-  , bpm: 70
-  , voices:
-    { bass: [0, 3, 4, 5, 3, 5, 12, 7]
-    , tenor: [0, 5, NaN, 5]
-    , alto: [2, 2, NaN]
-    , soprano: [7, 7, NaN, 9, 7, 7, 9, 13]
-    }
+type Voice = 
+  { bpm: number
+  , dt: number
+  , dv: number
+  , tonic?: number
+  , melody?: number[] // intervals
+  , notes?: number[][] // [freq, duration] point in soundspace
+  , sequencer?: any
+  , next?: any
   }
 
 
-const Red = 
-  { tonic: 1066.66
-  , bpm: 105
-  , voices: 
-    { bass: [7, 0, 7, 7]
-    , tenor: [3, 3, 2, 3, 5, 3, 2, 0]
-    , alto: [NaN, 5, 3, 5]
-    , soprano: [10, NaN, NaN, 10, 12, 11, 9, NaN]
-    }
+type SoundSource = (Voice | null) & { strength: number, next?: typeof Sequence }
+
+type Assemblage = 
+  { bass: SoundSource
+  , tenor: SoundSource
+  , alto: SoundSource
+  , soprano: SoundSource
   }
 
 
-function playEnsemble(ensemble = Red) {
-  const { tonic, bpm, voices } = ensemble
-  const now = audioContext.currentTime
-
-  Object.entries(voices).map(([voice, melody]) => {
-    const notes = intervalsToMelody(ensemble.tonic, (i) => 1/(i+1), melody)
-    log(`using voice:${voice}`)
-    log(`using melody:`,melody)
-    log(`got notes`, notes)
-    const seq = new Sequence(ensemble.bpm, notes)
-    const parts = 
-      { 'bass': partBass
-      , 'tenor': partHarmony
-      , 'alto': partLead
-      , 'sorpano': partHarmony
+const Presets = 
+  { [Clan.Yellow]: 
+    { tonic: 80
+    , bpm: 70
+    , voices:
+      { bass: [0, 3, 4, 5, 3, 5, 12, 7]
+      , tenor: [0, 5, NaN, 5]
+      , alto: [2, 2, NaN]
+      , soprano: [7, 7, NaN, 9, 7, 7, 9, 13]
       }
-    const part = parts[voice] || partHarmony
-    const play = part(now, ensemble.bpm, notes)
-    play()
-  })
-}
+    }
+  , [Clan.Red]: 
+    { tonic: 106.66
+    , bpm: 93.333
+    , voices: 
+      { bass: [7, 0, 7, 7]
+      , tenor: [3, 3, 2, 3, 5, 3, 2, 0]
+      , alto: [NaN, 5, 3, 5]
+      , soprano: [10, NaN, NaN, 10, 12, 11, 9, NaN]
+      }
+    }
+  , [Clan.Blue]:
+    { tonic: 142
+    , bpm: 124.44
+    , voices: 
+      { bass: [12, 9, 8, 7, 9, 7, 0, 5]
+      , tenor: [3, 3, 2, 3, 5, 3, 2, 0]
+      , alto: [10, 10, NaN]
+      , soprano: [10, NaN, NaN, 10, 12, 11, 9, NaN]
+      }
+    }
+  }
+
+
+  /**
+the game state must be aware of current global baseline bpm and measure number
+it does not need a record of it
+
+
+  */
+
+
+
+
 
 
 // todo decide if it is worth having a global async controls or use something else
 game.controls = []
-game()
-document?.querySelector("#play").addEventListener('click', () => playEnsemble(Yellow))
+game()  

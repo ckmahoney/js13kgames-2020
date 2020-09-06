@@ -51,7 +51,6 @@ const setupNextBeat = (time, opts, duration) => {
 }
 
 
-
 const getBeatIndex = (time: number, notes: number[], beatDuration) => {
   const barDuration = beatDuration * notes.length
   const location = time % barDuration
