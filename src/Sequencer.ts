@@ -103,7 +103,7 @@ Sequence.prototype.play = function( when ) {
   when = typeof when === 'number' ? when : this.ac.currentTime;
 
   this.createOscillator();
-  this.osc.start( when );
+  this.osc.start( when+1 );
 
   this.notes.forEach(function( note, i ) {
     when = this.scheduleNote( i, when );
@@ -119,7 +119,6 @@ Sequence.prototype.play = function( when ) {
 // stop playback, null out the oscillator, cancel parameter automation
 Sequence.prototype.stop = function() {
   if ( this.osc ) {
-    this.osc.onended = null;
     this.osc.stop( 0 );
     this.osc.frequency.cancelScheduledValues( 0 );
     this.osc = null;
@@ -149,6 +148,7 @@ export const partLead = (when, tempo, melody: Note[]) => {
   seq.gain.gain.value = 1.0;
   seq.mid.frequency.value = 800;
   seq.mid.gain.value = 3;
+
   return function play() {
     seq.play(when)
     return seq
@@ -157,11 +157,13 @@ export const partLead = (when, tempo, melody: Note[]) => {
 
 
 export const partHarmony = (when, tempo, melody: Note[]) => {
+  console.log(`playing harmony part`)
   const seq = new Sequence(tempo, melody);
   seq.mid.frequency.value = 1200;
   seq.gain.gain.value = 0.8;
   seq.staccato = 0.55;
   return function play() {
+    console.log(`replaying harmony`)
     seq.play(when)
     return seq
   }
@@ -183,7 +185,10 @@ export const partBass = (when, tempo, melody: Note[]) => {
   seq.mid.frequency.value = 500;
   seq.treble.gain.value = -2;
   seq.treble.frequency.value = 1400;
+  console.log(`enqueued a synth to start at ${when}`)
   return function play() {
+    console.log(`plying at `)
+    console.log(when)
     seq.play(when)
     return seq
   }
@@ -193,9 +198,7 @@ export const partBass = (when, tempo, melody: Note[]) => {
 export function getBeatIndex(time: number, bpm, notes = []) {
   const beatDuration = getBeatLength(bpm)
   const barDuration = beatDuration * notes.length
-  console.log(`says barDuration:${barDuration}`)
   const location = time % barDuration
-  console.log(`location:${location}`)
 
   return notes.findIndex((note, i) => 
     location <= ((i+1) * beatDuration))
@@ -203,7 +206,14 @@ export function getBeatIndex(time: number, bpm, notes = []) {
 
 
 export function getBeatLength(bpm) {
-  return (60/bpm)*1000
+  return (60/bpm)
+}
+
+
+export function getStartOfNextBar(time, bpm, notes) {
+  let currentIndex = getBeatIndex(time, bpm, notes)
+  const beatWidth = getBeatLength(bpm)
+
 }
 
 

@@ -512,23 +512,8 @@ const game: Game = () => {
   }
 
 
-
-
-
-// function playEnsemble(ensemble) {
-//   const { tonic, bpm, voices } = ensemble
-//   const now = audioContext.currentTime
-
-//   return Object.entries(voices).map(([voice, melody]) => {
-//     const notes = intervalsToMelody(ensemble.tonic, (i) => 1/(i+1), melody)
-//     const synth = getSynth(Role[voice])
-//     const play = synth(now, ensemble.bpm, notes)
-//     return play()
-//   })
-// }
-
-
 type Synth = typeof partBass | typeof partHarmony | typeof partLead
+
 
 function getSynth(role: Role): Synth {
   const roles = 
@@ -537,67 +522,57 @@ function getSynth(role: Role): Synth {
     , 'alto': partLead
     , 'sorpano': partHarmony
     }
-    return (roles[role] || partHarmony)
+    return (roles[Role[role]] || partHarmony)
 }
 
 
-  const updateSound = (state: State, ctx: AudioContext): SideFX => {
-    const { assemblage } = state
+// reindexes the list to start at `index`
+function beatmatch(index, list: any[]) {
+  return [...list.concat().slice(index, list.length), ...list.concat().slice(0, index)]
+}
 
-    const now = ctx.currentTime*1000
-    log(`current time is:${now}`)
-    Object.entries(assemblage).forEach(([role, part]) => {
-      if (part.strength == 0) {
-        if (typeof part.sequencer != 'undefined') {
-          part.sequencer.stop()
-          delete part.sequencer
-        }
-        return
+
+const updateSound = (state: State, ctx: AudioContext): SideFX => {
+  const { assemblage } = state
+
+  const now = ctx.currentTime
+  Object.entries(assemblage).forEach(([role, part]) => {
+    if (part.strength == 0) {
+      if (typeof part.sequencer != 'undefined') {
+        part.sequencer.stop()
+        delete part.sequencer
       }
+      return
+    }
 
-      const synth = getSynth(Role[role])
-      const beat = getBeatIndex(now, part.bpm, part.melody)
-  throttle(5)
+    const synth = getSynth(Role[role])
+    const beat = getBeatIndex(now, part.bpm, part.melody)
 
-      log(`beat:${beat} looking at part for soundtrack:${role}`)
-      log(part)
-
-      // start the first one
-      if (typeof part.sequencer == 'undefined' && beat === 0) {
-        const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
-        const play = synth(now, part.bpm, notes)
-        part.sequencer = play()
-        log(part.sequencer.osc)
-        part.sequencer.osc.onended = () => {
-          const play = synth(now, part.bpm, notes)
-          play()
-          return play()
-        }
-        return
+    // start the first one
+    if (typeof part.sequencer == 'undefined') {
+      log(`starting first one`)
+      const notes = intervalsToMelody(part.tonic, x => 1, beatmatch(beat, part.melody))
+      const play = synth(now, part.bpm, notes)
+      part.sequencer = play()
+      part.sequencer.osc.onended = (): SideFX => {
+        log(`endd sequence`)
+        delete part.sequencer
       }
+      return
+    }
 
-      // start the next one 
-      if ((typeof part.next !== 'undefined') && (beat === 0)) {
-        log(`starting next part for:${role}`)
-        part.sequencer = part.next()
-        delete part.next
-        return
+    // set up the next loop
+    if ((typeof part?.sequencer?.osc.onended == 'undefined') && beat == (part.melody.length - 1)) {
+      log(`conginuing first one`)
+      const beatWidth = getBeatLength(part.bpm)
+      const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
+      part.sequencer.osc.onended = (): SideFX => {
+        log(`endd sequence 22`)
+        delete part.sequencer
       }
-
-      // set up the next loop
-      if ((typeof part.next !== 'undefined') && beat == (part.notes.length - 1)) {
-        log(`initializing next part for:${role}`)
-        const beatWidth = getBeatLength(part.bpm)
-        const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
-        log(part.sequencer.osc)
-        part.sequencer.osc.onended = () => {
-          const play = synth(now, part.bpm, notes)
-          play()
-          return play()
-        }
-      }
-    })
-  }
+    }
+  })
+}
 
   
   const createRoom: CreateRoom = (clan, role) => (
@@ -870,7 +845,6 @@ function getSynth(role: Role): Synth {
   const addToAssemblage = (assemblage: Assemblage, clan: Clan, role: Role, amt = 2): Assemblage => {
     const key = Role[role]
     if  (assemblage[key].clan != clan) {
-      console.log(`making update for clan`, clan)
       const preset = Presets[Clan[clan]]
       // Swap the previous type with the new one
       assemblage[key].clan = clan
@@ -878,10 +852,8 @@ function getSynth(role: Role): Synth {
       assemblage[key].bpm = preset.bpm
       assemblage[key].tonic = preset.tonic
       assemblage[key].melody = preset.voices[key]
-      log(`created part:`,assemblage[key])
     } else {
       assemblage[key].strength += amt
-      log(`updating part:${key}`)
     }
     return assemblage
   }
@@ -904,7 +876,6 @@ function getSynth(role: Role): Synth {
 
 
   const setupNextLevel = (state: State): State => {
-    log(`setting up level with state-level :`+ state.level)
     const room = nextRoom( state.room.clan, state.room.role )
     const drones = getDrones(state.level * 2)
     return {...state, drones, room}
