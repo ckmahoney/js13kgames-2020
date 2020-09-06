@@ -102,7 +102,6 @@ Sequence.prototype.rampFrequency = function( freq, when ) {
 Sequence.prototype.play = function( when ) {
   when = typeof when === 'number' ? when : this.ac.currentTime;
 
-  console.log(`play: this.next:${typeof this.next}`)
   this.createOscillator();
   this.osc.start( when );
 
@@ -111,10 +110,7 @@ Sequence.prototype.play = function( when ) {
   }.bind( this ));
 
   this.osc.stop( when );
-  if ( typeof this.next != 'undefined') {
-    console.log(`enqueuing next seq`)
-    this.osc.onended = this.play.bind( this.next, when )
-  }
+    // this.osc.onended = this.play.bind( this.next, when )
 
   return this;
 };

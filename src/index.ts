@@ -541,12 +541,7 @@ function getSynth(role: Role): Synth {
 }
 
 
-const updateSound = (time, state): State => {
-  return state
-}
-
-
-  const applySound = (time, state: State, ctx: AudioContext): SideFX => {
+  const updateSound = (state: State, ctx: AudioContext): SideFX => {
     const { assemblage } = state
 
     const now = ctx.currentTime
@@ -560,21 +555,27 @@ const updateSound = (time, state): State => {
       }
 
       const synth = getSynth(Role[role])
-      const beat = getBeatIndex(now, part.bpm, part.notes || [])
+      const beat = getBeatIndex(now, part.bpm, part.melody || [])
 
-      log(`looking at role:${role}`)
-      log(`looking at part:`,part)
+      log(`beat:${beat} looking at part for soundtrack:${role}`)
+      log(part)
 
       // start the first one
       if (typeof part.sequencer == 'undefined' && beat === 0) {
+        log(`initializing part:${role}`)
         const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
         const play = synth(now, part.bpm, notes)
         part.sequencer = play()
+        part.next = () => {
+          const play = synth(now, part.bpm, notes)
+          return play()
+        }
         return
       }
 
       // start the next one 
       if ((typeof part.next !== 'undefined') && (beat === 0)) {
+        log(`starting next part for:${role}`)
         part.sequencer = part.next()
         delete part.next
         return
@@ -582,6 +583,7 @@ const updateSound = (time, state): State => {
 
       // set up the next loop
       if ((typeof part.next !== 'undefined') && beat == (part.notes.length - 1)) {
+        log(`initializing next part for:${role}`)
         const beatWidth = getBeatLength(part.bpm)
         const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
         part.next = () => {
@@ -861,20 +863,20 @@ const updateSound = (time, state): State => {
 
 
   const addToAssemblage = (assemblage: Assemblage, clan: Clan, role: Role, amt = 2): Assemblage => {
-    log(`assemblage[Role[role]]`,assemblage[Role[role]])
-    log(`Role[Role.Bass]`,Role[Role.bass])
-    log(`Role[0]`,Role[0])
-    if  (assemblage[Role[role]].clan != clan) {
+    const key = Role[role]
+    if  (assemblage[key].clan != clan) {
+      console.log(`making update for clan`, clan)
       const preset = Presets[Clan[clan]]
-      console.log(`using preset`,preset)
       // Swap the previous type with the new one
-      assemblage[role].clan = clan
-      assemblage[role].strength = amt
-      assemblage[role].bpm = preset.bpm
-      assemblage[role].tonic = preset.tonic
-      assemblage[role].melody = preset.voices[role]
+      assemblage[key].clan = clan
+      assemblage[key].strength = amt
+      assemblage[key].bpm = preset.bpm
+      assemblage[key].tonic = preset.tonic
+      assemblage[key].melody = preset.voices[key]
+      log(`created part:`,assemblage[key])
     } else {
-      assemblage[role].strength += amt
+      assemblage[key].strength += amt
+      log(`updating part:${key}`)
     }
     return assemblage
   }
@@ -888,7 +890,6 @@ const updateSound = (time, state): State => {
       // first room is a bass shield pickup
       if (touches.length == 1) {
         const element = touches[0]
-        log(`picked element`, element)
         const assemblage = addToAssemblage(state.assemblage, element.clan, Role.bass)
         return {...state, assemblage, level: state.level + 1}
       }
@@ -898,21 +899,22 @@ const updateSound = (time, state): State => {
 
 
   const setupNextLevel = (state: State): State => {
+    log(`setting up level with state-level :`+ state.level)
     const room = nextRoom( state.room.clan, state.room.role )
     const drones = getDrones(state.level * 2)
     return {...state, drones, room}
   }
 
-  
   const loop: HandleTick = (time, prev: State, draw) => {
     tree.clear()
+
     let next = applyControls(time, prev)
-    next = updateSound(time, next)
-    applySound(time, next, audioContext)
     updateTreeIndices(time, next, tree)
+    updateSound(next, audioContext)
+
     const collisions = handleCollisions(next, tree)
     if (collisions.length > 0) {
-      next = handleTouches(state, collisions)
+      next = handleTouches(next, collisions)
     }
 
     if ( prev.level != next.level ) {
