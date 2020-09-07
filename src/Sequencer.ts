@@ -42,6 +42,7 @@ Sequence.prototype.createOscillator = function() {
   this.stop();
   this.osc = this.ac.createOscillator();
   this.osc.type = this.waveType || 'square';
+  this.gain.value = 0.1
   this.osc.connect( this.gain );
   return this;
 };

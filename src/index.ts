@@ -58,8 +58,8 @@ type State =
 
 
 type UnitPosition = Bounds & 
-  { 
-   lastwalk?: boolean
+  { name: string
+    lastwalk?: boolean
   }
 
 
@@ -387,7 +387,7 @@ const playerHeight = 80
 const playerWidth = 80
 const droneWidth = 50
 const droneHeight = 50
-
+const elementRadius = 10
 
 
 const aN: (a:any) => boolean = n => !isNaN(n)
@@ -548,9 +548,15 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
     const synth = getSynth(Role[role])
     const beat = getBeatIndex(now, part.bpm, part.melody)
 
+    const shorten = x =>{
+      let duration = ((1/(x+1)-0.1))
+      log(`duration:${duration}`)
+      return duration
+    } 
+
     // start the first one
     if (typeof part.sequencer == 'undefined') {
-      const notes = intervalsToMelody(part.tonic, x => 1, beatmatch(beat, part.melody))
+      const notes = intervalsToMelody(part.tonic, shorten, beatmatch(beat, part.melody))
       const play = synth(now, part.bpm, notes)
       part.sequencer = play()
       part.sequencer.osc.onended = (): SideFX => {
@@ -562,7 +568,7 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
     // set up the next loop
     if ((typeof part?.sequencer?.osc.onended == 'undefined') && beat == (part.melody.length - 1)) {
       const beatWidth = getBeatLength(part.bpm)
-      const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
+      const notes = intervalsToMelody(part.tonic, shorten, part.melody)
       part.sequencer.osc.onended = (): SideFX => {
         delete part.sequencer
       }
@@ -604,14 +610,34 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
   }
 
 
+  const createOpeningMusicDrops = (qty = 3) => {
+    const drops = []
+
+    const containerWidth = canvasWidth*2/qty
+    const offsetWall = canvasWidth/qty
+    const offsetCeiling = canvasHeight/qty
+    const elWidth = containerWidth/qty
+
+    for (let i = 0; i < 3; i++) {
+      const x = offsetWall + (i*elWidth)
+      const y = offsetCeiling 
+      const radius = 1+ 40 * abs(sin((1+i)))
+      drops.push(createMusicDrop({x, y, radius, role: Role.bass, clan: Clan[i]}))
+    }
+    return drops
+  }
+
+
   const createMusicDrop = (defaults = {}) => {
     return Object.assign(
       { name: 'element'
       , clan: ''
-      , x: Math.random() * canvasWidth
-      , y: Math.random() * canvasHeight
-      , width: 40
-      , height: 40
+      , x: 0
+      , y: 0
+      , radius: elementRadius
+      , dr: (time, index = 1) => 1+ 40 * abs(sin((1+index)*tiny(time)))
+      , width: 0
+      , height: 0
       }, defaults )
   }
 
@@ -744,7 +770,6 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
     return getDrones(qty-1, drones)
   }
 
-
   const drawStage: UpdateStage = (time, state, illustrate) => {
     illustrate( (ctx) => ctx.clearRect(0,0, canvasWidth, canvasHeight))
 
@@ -801,9 +826,9 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
       radius = (typeof u.dr == 'function')
         ? u.dr(time, radius)
         : radius + sqrt(Math.pow(width,2) + Math.pow(height,2))
-      log(`applied radius value:${radius}`)
       width = height = radius
     }
+
     tree.insert({...u, x, y, width, height})
     return tree
   }
@@ -828,14 +853,12 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
 
   /* Global handler for store state updates */
   const updateTreeIndices = <Tree>(time, state: State, tree: Tree): Tree => {
-    if (state.level == 0) {
-      return addOpeningElementsToTree(time, tree)
-    }
+    // if (state.level == 0) {
+    //   return addOpeningElementsToTree(time, tree)
+    // }
     const next = ([state.player, ...state.drones, ...state.drops]).reduce(function add(tree, u) {
       return applyToTree(time, tree, u)}
       ,tree)
-    // @ts-ignore
-    window.log = () => log(next)
     return next
   }
 
@@ -892,6 +915,11 @@ const touchHandlers =
         : {...state, drones, level: state.level + 1} }
 
   , element(state, touches) {
+      if (state.level == 0 && touches.length > 1) {
+        // prevent multiple collisions when there are 3 nodes
+        return state
+      }
+
       const element = touches[0]
       const room = 
         { clan: element.clan
@@ -928,13 +956,11 @@ const touchHandlers =
 
 
   const setupDrops = (state: State): State => {  
-    // const unit = createMusicDrop({x, y, width: radius, height: radius, clan: Clan[i]})
+    // const unit = f({x, y, width: radius, height: radius, clan: Clan[i]})
     const element = createMusicDrop(
       { name: 'element'
       , x: canvasWidth / 2
       , y: canvasHeight / 2
-      , radius: 0
-      , dr: (time, index = 1) => 1+ 40 * abs(sin((1+index)*tiny(time)))
       , clan: state.room.clan
       , role: state.room.role
       })
@@ -1000,11 +1026,7 @@ const touchHandlers =
         , soprano: <SoundSource>{ strength: 0 }
         }
     , drones: []
-    , drops: 
-      [ createMusicDrop({role: Role.bass, clan: Clan.Red, radius: (time, index = 1) => 1+ 40 * abs(sin((1+index)*tiny(time)))})
-      , createMusicDrop({role: Role.bass, clan: Clan.Yellow, radius: (time, index = 2) => 1+ 40 * abs(sin((1+index)*tiny(time)))})
-      , createMusicDrop({role: Role.bass, clan: Clan.Blue, radius: (time, index = 3) => 1+ 40 * abs(sin((1+index)*tiny(time)))})
-      ]
+    , drops: createOpeningMusicDrops()
     , room: <Room><unknown>{ clan: null, role: null }
     , level: 0
     }
@@ -1024,7 +1046,7 @@ const touchHandlers =
         state.drops.forEach((unit, j) => {
           const x = offsetWall + (i*elWidth)
           const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
-          const radius = unit.radius(time,j)
+          const radius = unit.dr(time,j)
           // apply these here so they are stored for next tree insertion
           unit.width = radius
           unit.height = radius
