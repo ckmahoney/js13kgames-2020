@@ -1,7 +1,7 @@
 import {Quadtree} from './store'
 import soundtrack from './sounds'
 import {Sequence, Synth, partLead, partHarmony, partBass, intervalsToMelody, ac as audioContext, getBeatLength, getBeatIndex} from './Sequencer'
-const { abs, sin, cos, pow, sqrt } = Math
+const { abs, sin, cos, pow, sqrt, floor, ceil, random } = Math
 
 
 enum Role 
@@ -100,6 +100,10 @@ type Assemblage =
   }
 
 
+type RGB =
+  [number,number,number] | number[]
+
+
 interface Bounds  
   { x: number
   , y: number
@@ -190,17 +194,37 @@ interface QTInterface
 
 const clanAttributes = 
   { [Clan.Red]: 
-    { text: '><'
-    , color: 'red'
+    { rgb: [255,0,0]
     }
   , [Clan.Blue]: 
-    { text: '<>'
-    , color: 'blue'
+    { rgb: [0,0,255]
     }
   , [Clan.Yellow]:
-    { text: '\/'
-    , color: 'yellow'
+    { rgb: [0,255,0]
     }
+  }
+
+
+const roleAttributes = 
+  { [Role.bass]:
+    { colorMod(n, time) 
+      { return n == 255 ? 50: n }
+    , text: '#' 
+    }
+  , [Role.tenor]:
+    { colorMod(n, time) 
+      { return n == 255 ? 100: n }
+    , text: '\\-'
+    }
+  , [Role.alto]:
+    { colorMod(n, time) 
+      { return n == 255 ? 175: n }
+    , text: '=/'
+    }
+  , [Role.soprano]:
+    { colorMod(n, time) 
+      { return 255 }
+    , text: '@' }
   }
 
 
@@ -284,15 +308,25 @@ const elementRadius = 10
 const tiny = (n, scale = 3) => n * pow(10,-(scale))
 
 
-
-
-
 const throttle = (seconds = 2) => 
   setTimeout(() => {debugger},seconds*1000)
 
 
 const aN: (a:any) => boolean = n => 
   (!isNaN(n) && typeof n == 'number')
+
+
+const toColor = (rgb: RGB, mod = (n, time) => n): string => {
+  if (rgb.length != 3) {
+    return ''
+  }
+
+  const [r,g,b] = rgb.map(mod).map(n => n.toString())
+  return `rgb(${r},${g},${b})`
+}
+
+const randomInt = (min = 0, max = 1) => 
+  floor(random() * (floor(max) - ceil(min) + 1)) + ceil(min);
 
 
 const log = (...any: any[]): SideFX => 
@@ -347,7 +381,7 @@ const fire = <U extends UnitPosition>(time, state: State): State => {
 
 
 const objectID = () => {
- //@ts-ignore
+ //@ts-ignore property prev does not exist on object of type 
  if (typeof objectID.prev == 'undefined') 
  //@ts-ignore
    objectID.prev = 0
@@ -384,12 +418,6 @@ const createDrone = (defaults = {}): Drone => {
     , lastwalk: false
     }, <Drone>defaults )
 }
-
-
-const createRoom: CreateRoom = (clan, role) => (
-    { clan
-    , role
-    })
 
 
 const createOpeningMusicDrops = (qty = 3) => {
@@ -559,14 +587,14 @@ function game() {
   const state: State = 
     { player: createPlayer()
     , assemblage:
-        { bass: <SoundSource>{ strength: 0 }
-        , tenor: <SoundSource>{ strength: 0 }
-        , alto: <SoundSource>{ strength: 0 }
-        , soprano: <SoundSource>{ strength: 0 }
-        }
+      { bass: <SoundSource>{ strength: 0 }
+      , tenor: <SoundSource>{ strength: 0 }
+      , alto: <SoundSource>{ strength: 0 }
+      , soprano: <SoundSource>{ strength: 0 }
+      }
     , drones: []
     , drops: createOpeningMusicDrops()
-    , room: <Room><unknown>{ clan: null, role: null }
+    , room: <Room><unknown>{ clan: null, role: Role.bass }
     , level: 0
     }
   
@@ -620,12 +648,12 @@ function game() {
 
 
   const drawNPCS: StatefulDraw = (time, state): Draw => {
-    const color = clanAttributes[state.room.clan].color
-    const text = clanAttributes[state.room.clan].text
+    const cAttrs = clanAttributes[state.room.clan]
+    const rAttrs = roleAttributes[state.room.role]
     return (ctx) => {
       state.drones.forEach( ({x,y},i) => {
-        ctx.fillStyle = color
-        ctx.fillText(text.repeat(2), x+droneWidth, y+droneHeight)  
+        ctx.fillStyle = toColor(cAttrs.rgb, rAttrs.colorMod)
+        ctx.fillText(rAttrs.text.repeat(2), x+droneWidth, y+droneHeight)  
       } )
     }
   }
@@ -689,11 +717,11 @@ function game() {
     let offsetCeiling = (canvasHeight-doorHeight)/3
 
     // left door
-    ctx.fillStyle = clanAttributes[altClans[0]].color
+    ctx.fillStyle = toColor(clanAttributes[altClans[0]].rgb)
     ctx.fillRect(offsetWall, offsetCeiling, offsetWall + doorWidth, offsetCeiling + doorHeight)
 
     // right door
-    ctx.fillStyle = clanAttributes[altClans[1]].color
+    ctx.fillStyle = toColor(clanAttributes[altClans[1]].rgb)
     ctx.fillRect(canvasWidth-offsetWall-doorWidth, offsetCeiling, canvasWidth-offsetWall+doorWidth, offsetCeiling + doorHeight)
   }
 
@@ -748,7 +776,7 @@ function game() {
     illustrate( (ctx) => ctx.clearRect(0,0, canvasWidth, canvasHeight))
 
     if (state.level == 0) {
-      openingRoom(time, state, illustrate)
+      openingScene(time, state, illustrate)
       return
     }
 
@@ -761,7 +789,7 @@ function game() {
 
 
   const swarmScene = (time, state, illustrate) => {
-    // illustrate( drawRoom(time, state) )
+    illustrate( drawRoom(time, state) )
     illustrate( drawNPCS(time, state) )
     illustrate( drawPlayer(time, state) )
   }
@@ -792,20 +820,22 @@ function game() {
   }
 
 
+  const enumKeys = (e) =>
+    Object.keys(e).map(a => parseInt(a)).filter(aN)
+
+
   /** Create a room with new values compared to a previous room. */
   const nextRoom = (pClan: Clan, pRole: Role): Room => {
-    const altClans = Object.keys(Clan).map(a => parseInt(a)).filter(c => (c !== pClan) && aN(c))
-    const altRoles = Object.keys(Role).map(a => parseInt(a)).filter(r => (r !== pRole) && aN(r))
-    
-    return (
-      { clan: altClans[Number(coinToss())]
-      , role: altRoles[Number(coinToss())]
-      })
+    const altClans = enumKeys(Clan).filter(k => k!= pClan)
+    const altRoles = enumKeys(Role).filter(k => k!= pRole)
+    const clan =altClans[randomInt(0,altClans.length-1)]
+    const role = altRoles[randomInt(0,altRoles.length-1)]
+    return {clan, role}
   }
 
 
   const setupNextLevel = (state: State): State => {
-    const room = nextRoom( state.room.clan, state.room.role )
+    const room = nextRoom(state.room.clan, state.room.role)
     const drones = getDrones(state.level * 2)
     return {...state, drones, room}
   }
@@ -868,8 +898,8 @@ function game() {
   }
 
 
-  const openingRoom = (time, state, illustrate) => {
-    const clans = Object.keys(Clan).map(a => parseInt(a)).filter(aN)
+  const openingScene = (time, state, illustrate) => {
+    const clans = enumKeys(Clan)
     const containerWidth = canvasWidth*2/3
     const offsetWall = canvasWidth/3
     const offsetCeiling = canvasHeight/3
@@ -877,23 +907,24 @@ function game() {
     
     illustrate((ctx) => drawTiles(time, ctx))
 
-    for(let i = 0; i < clans.length; i++) {
+    state.drops.forEach((unit, i) => {
       illustrate((ctx) => {
-        state.drops.forEach((unit, j) => {
-          const x = offsetWall + (i*elWidth)
-          const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
-          const radius = unit.dr(time,j)
-          // apply these here so they are stored for next tree insertion
-          unit.width = radius
-          unit.height = radius
+        const attrs =clanAttributes[i]
+        const rAttrs =roleAttributes[i]
+        const x = offsetWall + (i*elWidth)
+        const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
+        const radius = unit.dr(time,i)
+        // apply these here so they are stored for next tree insertion
+        unit.width = radius
+        unit.height = radius
 
-          ctx.fillStyle = ctx.strokeStyle = clanAttributes[i].color
-          ctx.arc(x, y, radius, 0, 2 * Math.PI)
-          ctx.fill()
-          ctx.stroke()
-        })
-      } )
-    }
+        ctx.fillStyle = ctx.strokeStyle =  toColor(attrs.rgb,rAttrs[i])
+        ctx.arc(x, y, radius, 0, 2 * Math.PI)
+        ctx.fill()
+        ctx.stroke()
+      })
+    } )
+
     illustrate( drawPlayer(time, state) )
   }
 
