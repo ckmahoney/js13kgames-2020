@@ -779,8 +779,6 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
 
 
   const applyToTree = <U extends UnitPosition>(tree: QTInterface, u: U): QTInterface => {
-    log(`added u to tree`,u)
-   
     tree.insert(u)
     return tree
   }
@@ -806,8 +804,10 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
 
   /* Global handler for store state updates */
   const updateTreeIndices = <T>(time, state: State, tree: T) => {
-    let units = [state.player, ...state.drones, ...state.drops]
-    return units.reduce(applyToTree, tree)
+    if (state.level == 0) {
+      return addOpeningElementsToTree(time, tree)
+    }
+    return ([state.player, ...state.drones, ...state.drops]).reduce(applyToTree,tree)
   }
 
 
@@ -858,14 +858,11 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
       return state
 
     if (state.level == 0) {
-      log(`touches`,touches)
       // first room is a bass shield pickup
       if (touches.length == 1) {
         const element = touches[0]
-        log(`element`)
-        log(element)
         const assemblage = addToAssemblage(state.assemblage, element.clan, Role.bass)
-        return {...state, assemblage}
+        return {...state, assemblage, level: 1}
       }
     }
 
