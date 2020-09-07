@@ -58,13 +58,21 @@ type State =
 
 
 type UnitPosition = Bounds & 
-  { z?: number 
-  , lastwalk?: boolean
+  { 
+   lastwalk?: boolean
   }
 
 
 interface Bounds  
-  { x: number, y: number, width: number, height: number}
+  { x: number
+  , y: number
+  , width: number
+  , height: number
+  , radius?: number 
+  , dx?: Function
+  , dy?: Function
+  , dr?: Function
+}
 
 
 interface ControlListener
@@ -778,11 +786,27 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
   }
 
 
-  const applyToTree = <U extends UnitPosition>(tree: QTInterface, u: U): QTInterface => {
-    tree.insert(u)
+  const applyToTree = <U extends UnitPosition>(time, tree: QTInterface, u: U): QTInterface => {
+    let {x, y, width, height, radius} = u
+
+    width = (typeof u.dx == 'function')
+      ? u.dx(time, u.x)
+      : u.x + width;
+
+    height = (typeof u.dy == 'function')
+      ? u.dy(time, u.y)
+      : u.y + height;
+
+    if (typeof radius == 'number') {
+      radius = (typeof u.dr == 'function')
+        ? u.dr(time, radius)
+        : radius + sqrt(Math.pow(width,2) + Math.pow(height,2))
+      log(`applied radius value:${radius}`)
+      width = height = radius
+    }
+    tree.insert({...u, x, y, width, height})
     return tree
   }
-
 
   function addOpeningElementsToTree(time, tree) {
     const clans = Object.keys(Clan).map(a => parseInt(a)).filter(aN)
@@ -795,7 +819,7 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
       const x = offsetWall + (i*elWidth)
       const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
       const radius = 1+ 40 * abs(sin((1+i)*tiny(time)))
-      tree.insert({name: `shield-${Clan[i]}`, clan: Clan[i], x, y, width: radius/2, height: radius/2})
+      tree.insert({name: `element`, clan: Clan[i], x, y, radius})
     }
 
     return tree
@@ -803,11 +827,16 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
 
 
   /* Global handler for store state updates */
-  const updateTreeIndices = <T>(time, state: State, tree: T) => {
+  const updateTreeIndices = <Tree>(time, state: State, tree: Tree): Tree => {
     if (state.level == 0) {
       return addOpeningElementsToTree(time, tree)
     }
-    return ([state.player, ...state.drones, ...state.drops]).reduce(applyToTree,tree)
+    const next = ([state.player, ...state.drones, ...state.drops]).reduce(function add(tree, u) {
+      return applyToTree(time, tree, u)}
+      ,tree)
+    // @ts-ignore
+    window.log = () => log(next)
+    return next
   }
 
 
@@ -853,28 +882,41 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
   }
 
 
+
+const touchHandlers = 
+  { drone(state, touches) {
+      const drones = state.drones.filter(d =>!touches.includes(d))
+
+      return drones.length > 0 
+        ? {...state, drones}
+        : {...state, drones, level: state.level + 1} }
+
+  , element(state, touches) {
+      const element = touches[0]
+      const room = 
+        { clan: element.clan
+        , role: (state.level == 0) ? Role.bass : element.role }
+      const assemblage = addToAssemblage(state.assemblage, room.clan, room.role)
+
+      return (
+        { ...state
+          , assemblage
+          , room
+          , drops: []
+          , level: state.level + 1} ) }
+
+  , buff(state) {
+
+    return state }
+  }
+
+
   const handleTouches = (state, touches): State => {
     if (touches.length == 0)
       return state
 
-    if (state.level == 0) {
-      // first room is a bass shield pickup
-      if (touches.length == 1) {
-        const element = touches[0]
-        const assemblage = addToAssemblage(state.assemblage, element.clan, Role.bass)
-        return {...state, assemblage, level: 1}
-      }
-    }
-
-    if (state.level > 0) {
-      const drones = state.drones.filter(d =>!touches.includes(d))
-      return drones.length > 0 
-        ? {...state, drones}
-        : {...state, drones, level: state.level + 1}
-    }
-
-
-    return state
+    const action = touchHandlers[touches[0].name]
+    return action(state,touches);
   }
 
 
@@ -885,13 +927,14 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
   }
 
 
-  const setupDrops = (state: State): State => {
+  const setupDrops = (state: State): State => {  
     // const unit = createMusicDrop({x, y, width: radius, height: radius, clan: Clan[i]})
     const element = createMusicDrop(
       { name: 'element'
       , x: canvasWidth / 2
       , y: canvasHeight / 2
-      , radius: (time, index = 1) => 1+ 40 * abs(sin((1+index)*tiny(time)))
+      , radius: 0
+      , dr: (time, index = 1) => 1+ 40 * abs(sin((1+index)*tiny(time)))
       , clan: state.room.clan
       , role: state.room.role
       })
@@ -911,10 +954,12 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
       next = handleTouches(next, collisions)
     }
 
-    if ( next.drones.length == 0 && next.drops.length == 0 ) {
+    if (prev.level != next.level) {
+      next = setupNextLevel(next)
+    } else if (next.drones.length == 0 && next.drops.length == 0 ) {
+      // The room is clear, provide the drops
       next = setupDrops(next)
-      return requestAnimationFrame((ntime) => loop(ntime, next, draw, tree))
-    }
+    } 
 
     updateListeners(next)
     drawStage(time, next, draw)
@@ -943,7 +988,7 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
   }
 
 
-  const { abs, sin, cos, pow } = Math
+  const { abs, sin, cos, pow, sqrt } = Math
   const tiny = (n, scale = 3) => n * pow(10,-(scale))
   const controls: Controls = []
   const state: State = 
@@ -956,9 +1001,9 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
         }
     , drones: []
     , drops: 
-      [ createMusicDrop({clan: Clan.Red, radius: (time, index = 1) => 1+ 40 * abs(sin((1+index)*tiny(time)))})
-      , createMusicDrop({clan: Clan.Yellow, radius: (time, index = 2) => 1+ 40 * abs(sin((1+index)*tiny(time)))})
-      , createMusicDrop({clan: Clan.Blue, radius: (time, index = 3) => 1+ 40 * abs(sin((1+index)*tiny(time)))})
+      [ createMusicDrop({role: Role.bass, clan: Clan.Red, radius: (time, index = 1) => 1+ 40 * abs(sin((1+index)*tiny(time)))})
+      , createMusicDrop({role: Role.bass, clan: Clan.Yellow, radius: (time, index = 2) => 1+ 40 * abs(sin((1+index)*tiny(time)))})
+      , createMusicDrop({role: Role.bass, clan: Clan.Blue, radius: (time, index = 3) => 1+ 40 * abs(sin((1+index)*tiny(time)))})
       ]
     , room: <Room><unknown>{ clan: null, role: null }
     , level: 0
@@ -992,28 +1037,6 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
       } )
     }
     illustrate( drawPlayer(time, state) )
-  }
-
-
-  // saved preset for showing two elements orbiting around a central unit
-  const orbit = (time,state,illustrate) => {
-    const radius = 100 
-    const clans = Object.keys(Clan).map(a => parseInt(a)).filter(aN)
-    const containerWidth = canvasWidth/2
-    const offsetWall = canvasWidth/3
-    const offsetCeiling = canvasHeight/3
-    const elWidth = containerWidth/clans.length
-
-    for( let i = 0; i < clans.length; i++) {
-      illustrate( (ctx) => {
-        let y = offsetWall + (elWidth * i) * ((Math.cos(time * (i*0.25)/100)))
-        let x = canvasHeight * (Math.abs(Math.sin(time * 0.125/1000)))
-        ctx.fillStyle = ctx.strokeStyle = clanAttributes[i]
-        ctx.arc(x, y, radius, 0, 2 * Math.PI)
-        ctx.fill()
-        ctx.stroke()
-      } )
-    }
   }
 
 
