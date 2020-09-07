@@ -148,6 +148,7 @@ export const partLead = (when, tempo, melody: Note[]) => {
   seq.gain.gain.value = 1.0;
   seq.mid.frequency.value = 800;
   seq.mid.gain.value = 3;
+  seq.osc.type = 'saw'
 
   return function play() {
     seq.play(when)
@@ -157,13 +158,12 @@ export const partLead = (when, tempo, melody: Note[]) => {
 
 
 export const partHarmony = (when, tempo, melody: Note[]) => {
-  console.log(`playing harmony part`)
   const seq = new Sequence(tempo, melody);
   seq.mid.frequency.value = 1200;
   seq.gain.gain.value = 0.8;
   seq.staccato = 0.55;
+  seq.osc.type = 'sine'
   return function play() {
-    console.log(`replaying harmony`)
     seq.play(when)
     return seq
   }
@@ -185,10 +185,7 @@ export const partBass = (when, tempo, melody: Note[]) => {
   seq.mid.frequency.value = 500;
   seq.treble.gain.value = -2;
   seq.treble.frequency.value = 1400;
-  console.log(`enqueued a synth to start at ${when}`)
   return function play() {
-    console.log(`plying at `)
-    console.log(when)
     seq.play(when)
     return seq
   }

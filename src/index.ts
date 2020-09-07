@@ -50,7 +50,7 @@ type Room =
 type State = 
   { player: Player
   , drones: Drone[]
-  , fx: any[]
+  , drops: any[]
   , room: Room
   , level: number
   , assemblage: Assemblage
@@ -62,12 +62,6 @@ type UnitPosition = Bounds &
   , lastwalk?: boolean
   }
 
-
-type TouchZone = UnitPosition & 
-  { onCreate?: () => SideFX
-  , onEnter?: () => SideFX
-  , onCollision?: () => SideFX
-  }
 
 interface Bounds  
   { x: number, y: number, width: number, height: number}
@@ -87,7 +81,7 @@ interface CreateRoom
 
 
 interface HandleTick
-  { (time: DOMHighResTimeStamp, state: State, draw: Illustrate): SideFX }
+  { (time: DOMHighResTimeStamp, state: State, draw: Illustrate, store: any): SideFX }
 
 
 interface Render
@@ -152,23 +146,21 @@ interface QTInterface
   , retrieve: (bounds) => any
   }
 
-  
-  const getLocations = (unit, bounds) => {
-    const verticalMidpoint = bounds.x + (bounds.width/2),
-      horizontalMidpoint = bounds.y + (bounds.height/2); 
 
-    const startIsNorth = unit.y < horizontalMidpoint,
-      startIsWest = unit.x < verticalMidpoint,
-      endIsEast = unit.x + unit.width > verticalMidpoint,
-      endIsSouth = unit.y + unit.height > horizontalMidpoint;
-
-      return(
-        [ startIsNorth && endIsEast
-        , startIsWest && startIsNorth
-        , startIsWest && endIsSouth
-        , endIsEast && endIsSouth] )
-     .map((inLocation, i) => inLocation ? i : NaN).filter(aN)
-  }
+  const clanAttributes = 
+    { [Clan.Red]: 
+      { text: '><'
+      , color: 'red'
+      }
+    , [Clan.Blue]: 
+      { text: '<>'
+      , color: 'blue'
+      }
+    , [Clan.Yellow]:
+      { text: '\/'
+      , color: 'yellow'
+      }
+    }
 
 
     function Quadtree(bounds, max_objects = 4, max_levels = 10, level = 0) {
@@ -385,9 +377,9 @@ const canvasWidth = 800
 const canvasHeight = 450
 const playerHeight = 80
 const playerWidth = 80
+const droneWidth = 50
+const droneHeight = 50
 
-
-const tree = new Quadtree({x: 0, y: 0, width: canvasWidth, height: canvasHeight }, 3, 4);
 
 
 const aN: (a:any) => boolean = n => !isNaN(n)
@@ -454,14 +446,14 @@ const moveDown = <U extends UnitPosition>(u: U, amt=7): U  =>
 
 
 const fire = <U extends UnitPosition>(time, state: State): State => {
-  const { player, fx } = state
+  const { player, drops } = state
   const origin = 
     { x: player.x
     , y: player.y
     }
   return (
     { ...state
-    , fx: fx.concat({type: 'attack', origin})
+    , drops: drops.concat({type: 'attack', origin})
     })
 }
 
@@ -506,7 +498,7 @@ const game: Game = () => {
     return (
       {...state
       , player: game.controls.reduce(applyMotion,state.player)
-      , fx: state.fx.reduce(applyActions,state.fx)
+      , drops: state.drops.reduce(applyActions,state.drops)
       , drones: state.drones.map(walk)
       })
   }
@@ -550,12 +542,10 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
 
     // start the first one
     if (typeof part.sequencer == 'undefined') {
-      log(`starting first one`)
       const notes = intervalsToMelody(part.tonic, x => 1, beatmatch(beat, part.melody))
       const play = synth(now, part.bpm, notes)
       part.sequencer = play()
       part.sequencer.osc.onended = (): SideFX => {
-        log(`endd sequence`)
         delete part.sequencer
       }
       return
@@ -563,11 +553,9 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
 
     // set up the next loop
     if ((typeof part?.sequencer?.osc.onended == 'undefined') && beat == (part.melody.length - 1)) {
-      log(`conginuing first one`)
       const beatWidth = getBeatLength(part.bpm)
       const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
       part.sequencer.osc.onended = (): SideFX => {
-        log(`endd sequence 22`)
         delete part.sequencer
       }
     }
@@ -610,7 +598,7 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
 
   const createMusicDrop = (defaults = {}) => {
     return Object.assign(
-      { name: 'shield'
+      { name: 'element'
       , clan: ''
       , x: Math.random() * canvasWidth
       , y: Math.random() * canvasHeight
@@ -620,35 +608,30 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
   }
 
 
-  const getClanColor = (clan: Clan): string => (
-    { [Clan.Red]: 'red'
-    , [Clan.Blue]: 'blue'
-    , [Clan.Yellow]: 'yellow'
-    })[clan]
-
-
-  const getClanText = (clan: Clan): string => (
-    { [Clan.Red]: '+'
-    , [Clan.Blue]: '#'
-    , [Clan.Yellow]: '/'
-    })[clan]
-
-  
-  const getClanAttributes = (clan: Clan) => (
-    { color: getClanColor(clan)
-    , text: getClanText(clan)
-    })
-
-
   const drawNPCS: StatefulDraw = (time, state): Draw => {
-    const {color, text} = getClanAttributes(state.room.clan)
-    let uw = 50
-    let uh = 50
+    const color = clanAttributes[state.room.clan].color
+    const text = clanAttributes[state.room.clan].text
     return (ctx) => {
-      state.drones.forEach( ({x,y, shield},i) => {
+      state.drones.forEach( ({x,y},i) => {
         ctx.fillStyle = color
-        //@ts-ignore
-        ctx.fillText(text.repeat(shield), x, y)  
+        ctx.fillText(text.repeat(2), x+droneWidth, y+droneHeight)  
+      } )
+    }
+  }
+
+
+  const drawDrops: StatefulDraw = (time, state): Draw => {
+    throttle(5)
+    return (ctx) => {
+      drawDoors(ctx, state.room.clan)
+      state.drops.forEach( ({x,y,width,height},i) => {
+        const startAngle = 0 + tiny(time)
+        const endAngle = (Math.PI/4) + tiny(time)
+        console.log(x,y,startAngle,endAngle)
+        ctx.fillStyle = 'black'
+        ctx.arc(x, y, 70, startAngle, endAngle);
+        ctx.stroke();
+        ctx.fill();
       } )
     }
   }
@@ -673,13 +656,13 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
 
 
     for (let i=0;i<nx;i++) {
-      let r = (i *tiny(time, 2)) % 255
+      let r = (i *tiny(time, 3)) % 255
       for (let j=0;j<ny;j++) {
-        let g = (j *tiny(time, 1)) % 255
-        let b = (i+j *tiny(time, 2)) % 255
+        let g = (j *tiny(time, 2)) % 255
+        let b = (i+j *tiny(time, 3)) % 255
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
-        ctx.strokeRect(i*tw, j*th, i*tw + tw, j*tw+tw)
+        // ctx.strokeRect(i*tw, j*th, i*tw + tw, j*tw+tw)
       }
     }
   }
@@ -693,11 +676,11 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
     let offsetCeiling = (canvasHeight-doorHeight)/3
 
     // left door
-    ctx.fillStyle = getClanColor(altClans[0])
+    ctx.fillStyle = clanAttributes[altClans[0]].color
     ctx.fillRect(offsetWall, offsetCeiling, offsetWall + doorWidth, offsetCeiling + doorHeight)
 
     // right door
-    ctx.fillStyle = getClanColor(altClans[1])
+    ctx.fillStyle = clanAttributes[altClans[1]].color
     ctx.fillRect(canvasWidth-offsetWall-doorWidth, offsetCeiling, canvasWidth-offsetWall+doorWidth, offsetCeiling + doorHeight)
   }
 
@@ -705,7 +688,6 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
   const drawRoom: StatefulDraw = (time, state): Draw => {
     return (ctx) => {
       drawTiles(time, ctx)
-      drawDoors(ctx, state.room.clan)
       ctx.strokeStyle = "black"
       ctx.strokeRect(0, 0, 600, 600)
     }
@@ -754,18 +736,32 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
 
   const drawStage: UpdateStage = (time, state, illustrate) => {
     illustrate( (ctx) => ctx.clearRect(0,0, canvasWidth, canvasHeight))
+
     if (state.level == 0) {
       openingRoom(time, state, illustrate)
+      return
+    }
+
+
+    if (state.drops.length > 0) {
+      dropScene(time, state, illustrate)
     } else {
-      stage(time, state, illustrate)
+      swarmScene(time, state, illustrate)
     }
   }
 
 
-  const stage = (time, state, illustrate) => {
+  const swarmScene = (time, state, illustrate) => {
     illustrate( drawRoom(time, state) )
     illustrate( drawNPCS(time, state) )
     illustrate( drawPlayer(time, state) )
+  }
+
+
+ const dropScene = (time, state, illustrate) => {
+    // illustrate( drawRoom(time, state) )
+    illustrate( drawDrops(time, state) )
+    // illustrate( drawPlayer(time, state) )
   }
 
 
@@ -805,15 +801,15 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
 
   /* Global handler for store state updates */
   const updateTreeIndices = <T>(time, state: State, tree: T) => {
-    let items: any[] = []
+    let units: any[] = []
     if (state.level == 0) {
       addOpeningElementsToTree(time, tree)
     } else {
-      items = items.concat(state.drones)
+      units = units.concat(state.drones)
     }
 
-    items = items.concat(state.player)
-    return items.reduce(applyToTree, tree)
+    units = units.concat(state.player)
+    return units.reduce(applyToTree, tree)
   }
 
 
@@ -860,6 +856,8 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
 
 
   const handleTouches = (state, touches): State => {
+    log(`touches`)
+    log(touches)
     if (touches.length == 0)
       return state
 
@@ -871,6 +869,15 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
         return {...state, assemblage, level: state.level + 1}
       }
     }
+
+    if(state.level > 0) {
+      const drones = state.drones.filter(d =>!touches.includes(d))
+      return drones.length > 0 
+        ? {...state, drones}
+        : {...state, drones, level: state.level + 1}
+    }
+
+
     return state
   }
 
@@ -881,7 +888,20 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
     return {...state, drones, room}
   }
 
-  const loop: HandleTick = (time, prev: State, draw) => {
+
+  const setupDrops = (state: State): State => {
+    const element = 
+      { name: 'element'
+      , x: canvasWidth / 2
+      , y: canvasHeight / 2
+      , clan: state.room.clan
+      , role: state.room.role
+      }
+    return {...state, drops: [element]}
+  }
+
+
+  const loop: HandleTick = (time, prev: State, draw, tree) => {
     tree.clear()
 
     let next = applyControls(time, prev)
@@ -894,13 +914,13 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
     }
 
     if ( prev.level != next.level ) {
-      next = setupNextLevel(next)
-      return requestAnimationFrame((ntime) => loop(ntime, next, draw))
+      next = setupDrops(next)
+      return requestAnimationFrame((ntime) => loop(ntime, next, draw, tree))
     }
 
     updateListeners(next)
     drawStage(time, next, draw)
-    requestAnimationFrame((ntime) => loop(ntime, next, draw))
+    requestAnimationFrame((ntime) => loop(ntime, next, draw, tree))
   }
 
 
@@ -919,7 +939,9 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
       ctx.closePath()
     }
 
-    tick(0, state, draw)
+    const tree = new Quadtree({x: 0, y: 0, width: canvasWidth, height: canvasHeight }, 3, 4);
+
+    tick(0, state, draw, tree)
   }
 
 
@@ -935,7 +957,7 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
         , soprano: <SoundSource>{ strength: 0 }
         }
     , drones: []
-    , fx: []
+    , drops: []
     , room: <Room><unknown>{ clan: null, role: null }
     , level: 0
     }
@@ -951,7 +973,6 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
     illustrate((ctx) => drawTiles(time, ctx))
 
     for(let i = 0; i < clans.length; i++) {
-     
       illustrate((ctx) => {
         const x = offsetWall + (i*elWidth)
         const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
@@ -960,14 +981,13 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
         unit.width = radius
         unit.height = radius
 
-        ctx.fillStyle = ctx.strokeStyle = getClanColor(i)
+        ctx.fillStyle = ctx.strokeStyle = clanAttributes[i]
         ctx.arc(x, y, radius, 0, 2 * Math.PI)
         ctx.fill()
         ctx.stroke()
       } )
     }
     illustrate( drawPlayer(time, state) )
-
   }
 
 
@@ -984,7 +1004,7 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
       illustrate( (ctx) => {
         let y = offsetWall + (elWidth * i) * ((Math.cos(time * (i*0.25)/100)))
         let x = canvasHeight * (Math.abs(Math.sin(time * 0.125/1000)))
-        ctx.fillStyle = ctx.strokeStyle = getClanColor(i)
+        ctx.fillStyle = ctx.strokeStyle = clanAttributes[i]
         ctx.arc(x, y, radius, 0, 2 * Math.PI)
         ctx.fill()
         ctx.stroke()
