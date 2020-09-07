@@ -4,7 +4,10 @@ import { transpose } from './music'
 export const ac = new AudioContext()
 
 
-type Note = [number, number] | number[][]
+export type Note = [number, number] | number[][]
+
+
+export type Synth = typeof partBass | typeof partHarmony | typeof partLead
 
 
 function Note( freq, duration ) {
@@ -128,16 +131,6 @@ Sequence.prototype.stop = function() {
 };
 
 
-// const lead = (freq, duration = 1, notes = [4, 9, 9, 7, 4, 9, 10, 10, 11 ]): Note[] =>
-//   notes.map((interval,i) => [transpose(freq, interval), duration])
-
-// const harmony = (freq, duration = 1, notes = [0, 7, 5, 11, 7, 4, 7, 9]): Note[] =>
-//   notes.map((interval,i) => [transpose(freq, interval), duration])
-
-// const bass = (freq, duration = 1, notes = [12, 0, 10, 12, 0, 0, 7, 5]): Note[] =>
-//   notes.map((interval,i) => [transpose(freq, interval), duration])
-
-
 export const intervalsToMelody = (root, duration = (i) => 1, intervals: number[] = []): Note[] => 
   intervals.map((interval, i) => 
     ([isNaN(interval) ? 0 : transpose(root, interval), duration(i)]))
@@ -149,7 +142,7 @@ export const partLead = (when, tempo, melody: Note[]) => {
   seq.gain.gain.value = 1.0;
   seq.mid.frequency.value = 800;
   seq.mid.gain.value = 3;
-  seq.osc.type = 'saw'
+  seq.waveType = 'square'
 
   return function play() {
     seq.play(when)
@@ -163,12 +156,11 @@ export const partHarmony = (when, tempo, melody: Note[]) => {
   seq.mid.frequency.value = 1200;
   seq.gain.gain.value = 0.8;
   seq.staccato = 0.55;
-  seq.osc.type = 'sine'
+  seq.waveType = 'triangle'
   return function play() {
     seq.play(when)
     return seq
   }
-  // seq.play( when + ( 60 / tempo ) * 16 );
 }
 
 
@@ -186,6 +178,8 @@ export const partBass = (when, tempo, melody: Note[]) => {
   seq.mid.frequency.value = 500;
   seq.treble.gain.value = -2;
   seq.treble.frequency.value = 1400;
+  seq.waveType = 'sine'
+
   return function play() {
     seq.play(when)
     return seq
@@ -213,11 +207,3 @@ export function getStartOfNextBar(time, bpm, notes) {
   const beatWidth = getBeatLength(bpm)
 
 }
-
-
- // export const demoMusic = (tempo = 132) => {
- //  const when = ac.currentTime
- //  playLead(when, tempo, lead(512))
- //  playHarmony(when, tempo, harmony(1024))
- //  playBass(when, tempo, bass(128))
- // }
