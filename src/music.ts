@@ -187,7 +187,11 @@ let next: Next = (limit=1, list:Freq[]=[], mod, n=0): any => {
 }
 
 
-export let transpose = (freq, steps): Freq   => {
+export let transpose = (freq: number, steps: number): Freq   => {
+  // Use `NaN` to represent a rest
+  // if ( isNaN(freq)) 
+  //   return 0
+  
   let modTable = transpositionMap() 
   let bound = modTable.length - 1
   if (steps <= bound) {

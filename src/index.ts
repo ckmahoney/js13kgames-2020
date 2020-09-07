@@ -1,6 +1,7 @@
 import soundtrack from './sounds'
 import { Store } from './store'
 document?.querySelector("#play").addEventListener('click', soundtrack)
+import {Sequence, partLead, partHarmony, partBass, intervalsToMelody, ac as audioContext } from './Sequencer'
 
 enum Role 
   { Bass
@@ -737,6 +738,60 @@ const game: Game = () => {
 }
 
 
+const getSoundtrackParts = (clan: Clan, role: Role): [number,number][] => {
+  const notes = []
+  return notes
+}
+
+
+const Yellow = 
+  { tonic: 80
+  , bpm: 70
+  , voices:
+    { bass: [0, 3, 4, 5, 3, 5, 12, 7]
+    , tenor: [0, 5, NaN, 5]
+    , alto: [2, 2, NaN]
+    , soprano: [7, 7, NaN, 9, 7, 7, 9, 13]
+    }
+  }
+
+
+const Red = 
+  { tonic: 1066.66
+  , bpm: 105
+  , voices: 
+    { bass: [7, 0, 7, 7]
+    , tenor: [3, 3, 2, 3, 5, 3, 2, 0]
+    , alto: [NaN, 5, 3, 5]
+    , soprano: [10, NaN, NaN, 10, 12, 11, 9, NaN]
+    }
+  }
+
+
+function playEnsemble(ensemble = Red) {
+  const { tonic, bpm, voices } = ensemble
+  const now = audioContext.currentTime
+
+  Object.entries(voices).map(([voice, melody]) => {
+    const notes = intervalsToMelody(ensemble.tonic, (i) => 1/(i+1), melody)
+    log(`using voice:${voice}`)
+    log(`using melody:`,melody)
+    log(`got notes`, notes)
+    const seq = new Sequence(ensemble.bpm, notes)
+    const parts = 
+      { 'bass': partBass
+      , 'tenor': partHarmony
+      , 'alto': partLead
+      , 'sorpano': partHarmony
+      }
+    const part = parts[voice] || partHarmony
+    const play = part(now, ensemble.bpm, notes)
+    play()
+  })
+}
+
+
 // todo decide if it is worth having a global async controls or use something else
 game.controls = []
 game()
+document?.querySelector("#play").addEventListener('click', () => playEnsemble(Yellow))
