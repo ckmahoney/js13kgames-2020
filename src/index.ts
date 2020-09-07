@@ -1,7 +1,7 @@
 import {Quadtree} from './store'
 import soundtrack from './sounds'
 import {Sequence, Synth, partLead, partHarmony, partBass, intervalsToMelody, ac as audioContext, getBeatLength, getBeatIndex} from './Sequencer'
-const { abs, sin, cos, pow, sqrt, floor, ceil, random } = Math
+const { abs, sin, cos, pow, sqrt, floor, ceil, random, PI } = Math
 
 
 enum Role 
@@ -233,30 +233,30 @@ const Presets =
     { tonic: 80
     , bpm: 70
     , voices:
-      { bass: [0, 3, 4, 5, 3, 5, 12, 7]
+      { bass: [0, 5, 0, 7]
       , tenor: [0, 5, NaN, 5]
-      , alto: [2, 2, NaN]
-      , soprano: [7, 7, NaN, 9, 7, 7, 9, 13]
+      , alto: [7, 2, NaN]
+      , soprano: [12, 4, NaN, 12, 7, NaN, 4, 7]
       }
     }
   , [Clan.Red]: 
-    { tonic: 106.66
+    { tonic: 160
     , bpm: 93.333
     , voices: 
-      { bass: [7, 0, 7, 7]
-      , tenor: [3, 3, 2, 3, 5, 3, 2, 0]
-      , alto: [NaN, 5, 3, 5]
-      , soprano: [10, NaN, NaN, 10, 12, 11, 9, NaN]
+      { bass: [7, 0]
+      , tenor: [4, 4, 2, 4]
+      , alto: [NaN, 7, 4, 7]
+      , soprano: [12, NaN, NaN, 0]
       }
     }
   , [Clan.Blue]:
-    { tonic: 142
-    , bpm: 124.44
+    { tonic: 320
+    , bpm: 124.44/2
     , voices: 
-      { bass: [12, 9, 8, 7, 9, 7, 0, 5]
-      , tenor: [3, 3, 2, 3, 5, 3, 2, 0]
-      , alto: [10, 10, NaN]
-      , soprano: [10, NaN, NaN, 10, 12, 11, 9, NaN]
+      { bass: [12, 0, NaN, 0]
+      , tenor: [0, 4, 0]
+      , alto: [7, NaN, 12]
+      , soprano: [4, NaN, NaN, 12, 7, 4, 7, NaN]
       }
     }
   }
@@ -302,7 +302,7 @@ const playerHeight = 80
 const playerWidth = 80
 const droneWidth = 50
 const droneHeight = 50
-const elementRadius = 10
+const elementRadius = 30
 
 
 const tiny = (n, scale = 3) => n * pow(10,-(scale))
@@ -324,6 +324,7 @@ const toColor = (rgb: RGB, mod = (n, time) => n): string => {
   const [r,g,b] = rgb.map(mod).map(n => n.toString())
   return `rgb(${r},${g},${b})`
 }
+
 
 const randomInt = (min = 0, max = 1) => 
   floor(random() * (floor(max) - ceil(min) + 1)) + ceil(min);
@@ -660,15 +661,21 @@ function game() {
 
 
   const drawDrops: StatefulDraw = (time, state): Draw => {
+    const rgb = [0,0,0]
     return (ctx) => {
       drawDoors(ctx, state.room.clan)
       state.drops.forEach( ({x,y,width,height},i) => {
-        const startAngle = 0 + tiny(time)
-        const endAngle = (Math.PI/4) + tiny(time)
-        ctx.fillStyle = 'magenta'
-        ctx.arc(x, y, 30, startAngle, endAngle);
-        ctx.stroke();
-        ctx.fill();
+        for (let j =0; j < 3; j++) {
+          rgb[i] = 255
+          log(`printing color`,toColor(rgb))
+          const offset =  + tiny(time) + (PI*j/4)
+          const startAngle = 0 + offset
+          const endAngle = (Math.PI/4) + offset
+          ctx.fillStyle = toColor(rgb)
+          ctx.arc(x, y, 30, startAngle, endAngle);
+          ctx.stroke();
+          ctx.fill();
+        }
       } )
     }
   }
@@ -731,6 +738,13 @@ function game() {
       drawTiles(time, ctx)
       ctx.strokeStyle = "black"
       ctx.strokeRect(0, 0, 600, 600)
+    }
+  }
+
+
+  const drawAssemblageOverlay = (time, state): Draw => {
+    return (ctx) => {
+
     }
   }
 
