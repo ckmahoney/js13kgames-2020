@@ -296,8 +296,8 @@ const Presets =
     }
 
 
-const canvasWidth = 800
-const canvasHeight = 450
+const canvasWidth = window.innerWidth
+const canvasHeight = window.innerHeight
 const playerHeight = 80
 const playerWidth = 80
 const droneWidth = 50
@@ -572,15 +572,39 @@ function getSynth(role: Role): Synth {
 }
 
 
+
 // reindexes the list to start at `index`
 function beatmatch(index, list: any[]) {
   return [...list.concat().slice(index, list.length), ...list.concat().slice(0, index)]
 }
 
-const shorten = x => {
+const choppy = x => 
+ 0.5
+
+
+const shortening = x => {
   let duration = 1/(x+1)
   return duration
 } 
+
+
+const tenuto = x => 
+  0.85
+
+
+const sostenuto = x => 
+  0.99
+
+
+const getDuration = (role: Role) => {
+  const roles = 
+    { 'bass': choppy
+    , 'tenor': tenuto
+    , 'alto': shortening
+    , 'sorpano': sostenuto
+    }
+    return (roles[Role[role]] || tenuto)
+}
 
 
 function game() {
@@ -627,7 +651,7 @@ function game() {
 
     // start the first one
     if (typeof part.sequencer == 'undefined') {
-      const notes = intervalsToMelody(part.tonic, shorten, beatmatch(beat, part.melody))
+      const notes = intervalsToMelody(part.tonic, getDuration(Role[role]), beatmatch(beat, part.melody))
       const play = synth(now, part.bpm, notes)
       part.sequencer = play()
       part.sequencer.osc.onended = (): SideFX => {
@@ -639,7 +663,7 @@ function game() {
     // set up the next loop
     if ((typeof part?.sequencer?.osc.onended == 'undefined') && beat == (part.melody.length - 1)) {
       const beatWidth = getBeatLength(part.bpm)
-      const notes = intervalsToMelody(part.tonic, shorten, part.melody)
+      const notes = intervalsToMelody(part.tonic, getDuration(Role[role]), part.melody)
       part.sequencer.osc.onended = (): SideFX => {
         delete part.sequencer
       }
@@ -667,7 +691,6 @@ function game() {
       state.drops.forEach( ({x,y,width,height},i) => {
         for (let j =0; j < 3; j++) {
           rgb[i] = 255
-          log(`printing color`,toColor(rgb))
           const offset =  + tiny(time) + (PI*j/4)
           const startAngle = 0 + offset
           const endAngle = (Math.PI/4) + offset
@@ -697,20 +720,73 @@ function game() {
 
 
   const drawTiles = (time, ctx): SideFX => {
-    let tw = 80
-    let th = 80
-    let nx = canvasWidth / tw
+    let tw = 10
+    let th = 10
+     let nx = canvasWidth / tw
     let ny = canvasHeight / th
-    ctx.stokeStyle = 'cyan'
 
     for (let i=0;i<nx;i++) {
-      let r = (i *tiny(time, 3)) % 255
+      // let r = (i *tiny(time, 3)) % 255
+      let r = (time) % 255
       for (let j=0;j<ny;j++) {
-        let g = (j *tiny(time, 2)) % 255
-        let b = (i+j *tiny(time, 3)) % 255
+        let g = (time+(time/j)) % 255
+        let b = (time+(time/i)) % 255
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
-        // ctx.strokeRect(i*tw, j*th, i*tw + tw, j*tw+tw)
+      }
+    }
+  }
+
+
+  const drawTiles2 = (time, ctx): SideFX => {
+    let tw = 20
+    let th = 20
+    let nx = canvasWidth / tw
+    let ny = canvasHeight / th
+
+    for (let i=0;i<nx;i++) {
+      let r = (i *tiny(time, 1)) % 255
+      for (let j=0;j<ny;j++) {
+        let g = (j *tiny(time, 2)) % 255
+        let b = (i+j *tiny(time, 4)) % 255
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
+        ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
+      }
+    }
+  }
+
+
+  const drawTiles3 = (time, ctx): SideFX => {
+    let tw = 20
+    let th = 20
+    let nx = canvasWidth / tw
+    let ny = canvasHeight / th
+
+    for (let i=0;i<nx;i++) {
+      let r = (i *tiny(time, 1 +time%5)) % 255
+      for (let j=0;j<ny;j++) {
+        let g = (j *tiny(time, time%2)) % 255
+        let b = (i+j *tiny(time, time%4)) % 255
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
+        ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
+      }
+    }
+  }
+
+
+  const drawTiles4 = (time, ctx): SideFX => {
+    let tw = time % 200
+    let th = time % 100
+    let nx = canvasWidth / tw
+    let ny = canvasHeight / th
+
+    for (let i=0;i<nx;i++) {
+      let r = (i *tiny(time, 1 +time%5)) % 255
+      for (let j=0;j<ny;j++) {
+        let g = (j *tiny(time, time%2)) % 255
+        let b = (i+j *tiny(time, time%4)) % 255
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
+        ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
       }
     }
   }
@@ -734,6 +810,13 @@ function game() {
 
 
   const drawRoom: StatefulDraw = (time, state): Draw => {
+    let selection = floor(tiny(time,3))%4
+    // let render = (
+    //   [ drawTiles
+    //   , drawTiles2
+    //   , drawTiles3
+    //   , drawTiles4
+    //   ])[selection]
     return (ctx) => {
       drawTiles(time, ctx)
       ctx.strokeStyle = "black"
@@ -937,15 +1020,13 @@ function game() {
         ctx.fill()
         ctx.stroke()
       })
-    } )
+    })
 
-    illustrate( drawPlayer(time, state) )
+    illustrate(drawPlayer(time, state))
   }
-
 
   go(state, loop)
 }
-
 
 
 const getSoundtrackParts = (clan: Clan, role: Role): [number,number][] => {
