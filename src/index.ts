@@ -1,6 +1,8 @@
 import soundtrack from './sounds'
 import {Sequence, partLead, partHarmony, partBass, intervalsToMelody, ac as audioContext, getBeatLength, getBeatIndex} from './Sequencer'
 
+import { context as titleContext } from './title'
+
 enum Role 
   { bass
   , tenor
@@ -387,6 +389,11 @@ const playerHeight = 80
 const playerWidth = 80
 const droneWidth = 50
 const droneHeight = 50
+
+const config = {
+  canvasWidth,
+  canvasHeight
+}
 
 
 
@@ -968,14 +975,12 @@ const touchHandlers =
 
 
   /** Grabs the rendering context to provide render callback. */
-  const go: Setup = (state, tick) => {
-
-    const canvas = <HTMLCanvasElement> window.document.querySelector("canvas")
-    canvas.width = canvasWidth
-    canvas.height = canvasHeight
-
+  const playback: Setup = (state, tick, config) => {
+    const {canvasWidth, canvasHeight} = config
+    const canvas = document.createElement('canvas')
     const ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
     ctx.font = '50px monospace'
+    
     const draw: Illustrate = (d: Draw): SideFX  => {
       ctx.beginPath()
       d(ctx)
@@ -983,7 +988,6 @@ const touchHandlers =
     }
 
     const tree = new Quadtree({x: 0, y: 0, width: canvasWidth, height: canvasHeight }, 3, 4);
-
     tick(0, state, draw, tree)
   }
 
@@ -1051,7 +1055,7 @@ const touchHandlers =
       })
   }
 
-  go(state, loop)
+  playback(state, loop, config)
 }
 
 
