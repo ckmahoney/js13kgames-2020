@@ -77,7 +77,7 @@ type Drone = UnitPosition &
 
 
 type Voice = 
-  { bpm: number
+  { bpm?: number
   , dt: number
   , dv: number
   , tonic?: number
@@ -89,6 +89,13 @@ type Voice =
 
 
 type SoundSource = (Voice | null) & { clan: Clan, strength: number, next?: typeof Sequence }
+
+
+type HeterogenousEnsemble =
+  { bpm: number
+  , tonic: number
+  , voices: { [role: string]: number[]
+  }}
 
 
 type Assemblage = 
@@ -259,6 +266,20 @@ const Presets =
       }
     }
   }
+
+
+  const Songs = 
+    { "opening":
+      { tonic: 84
+      , bpm: 132
+      , voices:
+        { [Role.bass]: [0, NaN, 0, 3, 0, NaN, 0, 4,0,NaN,0,7,9,5,7,2]
+        , [Role.tenor]: [3,3,3,3,4,4,4,4,7,7,7,7,10,10,10,10]
+        , [Role.alto]: [NaN,5,NaN,5,NaN,7,NaN,7,NaN,2,NaN,2,NaN,5,NaN,5]
+        , [Role.soprano]: [10, NaN, NaN, NaN, 11, NaN, NaN, NaN, NaN,  11, NaN, NaN, NaN, NaN,  10, NaN, NaN, NaN, NaN, ]
+        }
+      }
+    }
 
 
   const applyDroneDamage = (role, assemblage): Assemblage => {
@@ -660,10 +681,7 @@ function game() {
   }
 
 
-  const updateSound = (state: State, ctx: AudioContext): SideFX => {
-    const { assemblage } = state
-
-    const now = ctx.currentTime
+  const playMusicAssembly = (now: number, assemblage: Assemblage) => {
     Object.entries(assemblage).forEach(([role, part]) => {
       if (part.strength == 1) {
         if (typeof part.sequencer != 'undefined') {
@@ -696,6 +714,18 @@ function game() {
         }
       }
     })
+  }
+
+
+  const updateSound = (state: State, ctx: AudioContext): SideFX => {
+    const { assemblage } = state
+
+    if ( state.level == 0 ) {
+      playMusicAssembly(ctx.currentTime, Songs.opening)
+    } else {
+      playMusicAssembly(ctx.currentTime, state.assemblage)
+    }
+    
   }
 
 
