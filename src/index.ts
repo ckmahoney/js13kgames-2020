@@ -1,7 +1,7 @@
-import soundtrack from './sounds'
-import {Sequence, partLead, partHarmony, partBass, intervalsToMelody, ac as audioContext, getBeatLength, getBeatIndex} from './Sequencer'
+import {Quadtree} from './store'
+import {Sequence, Synth, partLead, partHarmony, partBass, intervalsToMelody, ac as audioContext, getBeatLength, getBeatIndex} from './Sequencer'
+const { abs, sin, cos, pow, sqrt, floor, ceil, random, PI } = Math
 
-import { context as titleContext } from './title'
 
 enum Role 
   { bass
@@ -31,18 +31,6 @@ type Stats =
   }
 
 
-type ShieldMeta = 
-  { clan: Clan | Empty, strength: number }
-
-
-type Shield = 
-  { [Role.bass]: ShieldMeta
-  , [Role.tenor]: ShieldMeta
-  , [Role.alto]: ShieldMeta
-  , [Role.soprano]: ShieldMeta
-  }
-
-
 type Room = 
   { clan: Clan
   , role: Role
@@ -60,9 +48,59 @@ type State =
 
 
 type UnitPosition = Bounds & 
-  { 
-   lastwalk?: boolean
+  { objectID: number
+    name: string
+    lastwalk?: boolean
   }
+
+
+type ModulationMap =
+  { [key: string]: GetNumber }
+
+
+type Controls = string[]
+
+
+type Empty = null | undefined
+
+
+type SideFX = void
+
+
+type Player = UnitPosition & Stats & { name: string }
+
+
+type Drone = UnitPosition &
+  { shield: number
+    name: string
+  }
+
+
+type Voice = 
+  { bpm: number
+  , dt: number
+  , dv: number
+  , tonic?: number
+  , melody?: number[] // intervals
+  , notes?: number[][] // [freq, duration] point in soundspace
+  , sequencer?: any
+  , next?: any
+  }
+
+
+type SoundSource = (Voice | null) & { clan: Clan, strength: number, next?: typeof Sequence }
+
+
+type Assemblage = 
+  { [Role.bass]: SoundSource
+  , [Role.tenor]: SoundSource
+  , [Role.alto]: SoundSource
+  , [Role.soprano]: SoundSource
+  }
+
+
+type RGB =
+  [number,number,number] | number[]
 
 
 interface Bounds  
@@ -103,7 +141,7 @@ interface Illustrate
 
 
 interface Setup
-  { (state: State, tick: HandleTick): SideFX }
+  { (state: State, tick: HandleTick, config: any): SideFX }
 
 
 interface UpdateStage
@@ -138,13 +176,6 @@ interface UpdateListeners
       prev?: Controls
       listen?: (e: KeyboardEvent) => SideFX }
 
-type Rect = 
-  { x: number
-  , y: number
-  , dx: number
-  , dy: number 
-  }
-
 
 interface QTInterface
   { box: any[]
@@ -157,238 +188,145 @@ interface QTInterface
   }
 
 
-  const clanAttributes = 
-    { [Clan.Red]: 
-      { text: '><'
-      , color: 'red'
+// # Game Data 
+
+
+const clanAttributes = 
+  { [Clan.Red]: 
+    { rgb: [255,0,0]
+    }
+  , [Clan.Blue]: 
+    { rgb: [0,0,255]
+    }
+  , [Clan.Yellow]:
+    { rgb: [0,255,0]
+    }
+  }
+
+
+const roleAttributes = 
+  { [Role.bass]:
+    { colorMod(n, time) 
+      { return n == 255 ? 50: n }
+    , text: '#' 
+    }
+  , [Role.tenor]:
+    { colorMod(n, time) 
+      { return n == 255 ? 100: n }
+    , text: '\\-'
+    }
+  , [Role.alto]:
+    { colorMod(n, time) 
+      { return n == 255 ? 175: n }
+    , text: '=/'
+    }
+  , [Role.soprano]:
+    { colorMod(n, time) 
+      { return 255 }
+    , text: '@' }
+  }
+
+
+const Presets = 
+  { [Clan.Yellow]: 
+    { tonic: 80
+    , bpm: 70
+    , voices:
+      { [Role.bass]: [0, 5, 0, 7]
+      , [Role.tenor]: [0, 5, NaN, 5]
+      , [Role.alto]: [7, 2, NaN]
+      , [Role.soprano]: [12, 4, NaN, 12, 7, NaN, 4, 7]
       }
-    , [Clan.Blue]: 
-      { text: '<>'
-      , color: 'blue'
+    }
+  , [Clan.Red]: 
+    { tonic: 160
+    , bpm: 93.333
+    , voices: 
+      { [Role.bass]: [7, 0]
+      , [Role.tenor]: [4, 4, 2, 4]
+      , [Role.alto]: [NaN, 7, 4, 7]
+      , [Role.soprano]: [12, NaN, NaN, 0]
       }
-    , [Clan.Yellow]:
-      { text: '\/'
-      , color: 'yellow'
+    }
+  , [Clan.Blue]:
+    { tonic: 320
+    , bpm: 124.44/2
+    , voices: 
+      { [Role.bass]: [12, 0, NaN, 0]
+      , [Role.tenor]: [0, 4, 0]
+      , [Role.alto]: [7, NaN, 12]
+      , [Role.soprano]: [4, NaN, NaN, 12, 7, 4, 7, NaN]
+      }
+    }
+  }
+
+
+  const applyDroneDamage = (role, assemblage): Assemblage => {
+    const next = {...assemblage}
+    const mirrors = 
+      [ [Role.bass, Role.soprano ]
+      , [Role.tenor, Role.alto] ]
+    
+    let dmg = 0
+    for( let duo of mirrors) {
+      if (duo.includes(role)) {
+        dmg = (duo[0] == role)
+          ? 1
+          : 2
+
+        next[role].strength = next[role].strength - dmg
       }
     }
 
+    return next
+  }
 
-    function Quadtree(bounds, max_objects = 4, max_levels = 10, level = 0) {
-        
-        this.max_objects    = max_objects || 10;
-        this.max_levels     = max_levels || 4;
-        
-        this.level  = level || 0;
-        this.bounds = bounds;
-        
-        this.objects    = [];
-        this.nodes      = [];
-    };
-    
-    
-    /**
-     * Split the node into 4 subnodes
-     */
-    Quadtree.prototype.split = function() {
-        
-        var nextLevel   = this.level + 1,
-            subWidth    = this.bounds.width/2,
-            subHeight   = this.bounds.height/2,
-            x           = this.bounds.x,
-            y           = this.bounds.y;        
-     
-        //top right node
-        this.nodes[0] = new Quadtree({
-            x       : x + subWidth, 
-            y       : y, 
-            width   : subWidth, 
-            height  : subHeight
-        }, this.max_objects, this.max_levels, nextLevel);
-        
-        //top left node
-        this.nodes[1] = new Quadtree({
-            x       : x, 
-            y       : y, 
-            width   : subWidth, 
-            height  : subHeight
-        }, this.max_objects, this.max_levels, nextLevel);
-        
-        //bottom left node
-        this.nodes[2] = new Quadtree({
-            x       : x, 
-            y       : y + subHeight, 
-            width   : subWidth, 
-            height  : subHeight
-        }, this.max_objects, this.max_levels, nextLevel);
-        
-        //bottom right node
-        this.nodes[3] = new Quadtree({
-            x       : x + subWidth, 
-            y       : y + subHeight, 
-            width   : subWidth, 
-            height  : subHeight
-        }, this.max_objects, this.max_levels, nextLevel);
-    };
-    
-    
-    /**
-     * Determine which node the object belongs to
-     * @param Object pRect      bounds of the area to be checked, with x, y, width, height
-     * @return Array            an array of indexes of the intersecting subnodes 
-     *                          (0-3 = top-right, top-left, bottom-left, bottom-right / ne, nw, sw, se)
-     */
-    Quadtree.prototype.getIndex = function(pRect) {
-        
-        var indexes = [],
-            verticalMidpoint    = this.bounds.x + (this.bounds.width/2),
-            horizontalMidpoint  = this.bounds.y + (this.bounds.height/2);    
 
-        var startIsNorth = pRect.y < horizontalMidpoint,
-            startIsWest  = pRect.x < verticalMidpoint,
-            endIsEast    = pRect.x + pRect.width > verticalMidpoint,
-            endIsSouth   = pRect.y + pRect.height > horizontalMidpoint;    
+  const touchHandlers = 
+    { drone(state: State, touches) {
+        const assemblage = touches.reduce((assemblage, drone) => 
+          applyDroneDamage(state.room.role, state.assemblage), touches)
 
-        //top-right quad
-        if(startIsNorth && endIsEast) {
-            indexes.push(0);
-        }
-        
-        //top-left quad
-        if(startIsWest && startIsNorth) {
-            indexes.push(1);
+        const defenderIDs = touches.map(drone => drone.objectID)
+
+        // destroy on contact
+        const drones = state.drones.filter(drone => 
+          !defenderIDs.includes(drone.objectID))
+
+        return {...state, drones} }
+
+    , element(state: State, touches) {
+        if (state.level == 0 && touches.length > 1) {
+          // prevent multiple collisions when there are 3 nodes
+          return state
         }
 
-        //bottom-left quad
-        if(startIsWest && endIsSouth) {
-            indexes.push(2);
-        }
+        const element = touches[0]
+        const room = 
+          { clan: element.clan
+          , role: (state.level == 0) ? Role.bass : element.role }
+        const assemblage = addToAssemblage(state.assemblage, room.clan, room.role)
 
-        //bottom-right quad
-        if(endIsEast && endIsSouth) {
-            indexes.push(3);
-        }
-     
-        return indexes;
-    };
-    
-    
-    /**
-     * Insert the object into the node. If the node
-     * exceeds the capacity, it will split and add all
-     * objects to their corresponding subnodes.
-     * @param Object pRect        bounds of the object to be added { x, y, width, height }
-     */
-    Quadtree.prototype.insert = function(pRect) {
-        
-        var i = 0,
-            indexes;
-         
-        //if we have subnodes, call insert on matching subnodes
-        if(this.nodes.length) {
-            indexes = this.getIndex(pRect);
-     
-            for(i=0; i<indexes.length; i++) {
-                this.nodes[indexes[i]].insert(pRect);     
-            }
-            return pRect;
-        }
-     
-        //otherwise, store object here
-        this.objects.push(pRect);
+        return (
+          { ...state
+            , assemblage
+            , room
+            , drops: []
+            , level: state.level + 1} ) }
 
-        //max_objects reached
-        if(this.objects.length > this.max_objects && this.level < this.max_levels) {
+    , buff(state) {
 
-            //split if we don't already have subnodes
-            if(!this.nodes.length) {
-                this.split();
-            }
-            
-            //add all objects to their corresponding subnode
-            for(i=0; i<this.objects.length; i++) {
-                indexes = this.getIndex(this.objects[i]);
-                for(var k=0; k<indexes.length; k++) {
-                    this.nodes[indexes[k]].insert(this.objects[i]);
-                }
-            }
-
-            //clean up this node
-            this.objects = [];
-        }
-        return pRect;
-     };
-     
-     
-    /**
-     * Return all objects that could collide with the given object
-     * @param Object pRect      bounds of the object to be checked { x, y, width, height }
-     * @Return Array            array with all detected objects
-     */
-    Quadtree.prototype.retrieve = function(pRect) {
-         
-        var indexes = this.getIndex(pRect),
-            returnObjects = this.objects;
-            
-        //if we have subnofdes, retrieve their objects
-        if(this.nodes.length) {
-            for(var i=0; i<indexes.length; i++) {
-                returnObjects = returnObjects.concat(this.nodes[indexes[i]].retrieve(pRect));
-            }
-        }
-
-        //remove duplicates
-        returnObjects = returnObjects.filter(function(item, index) {
-            return returnObjects.indexOf(item) >= index;
-        });
-     
-        return returnObjects;
-    };
-    
-    
-    /**
-     * Clear the quadtree
-     */
-    Quadtree.prototype.clear = function() {
-        
-        this.objects = [];
-     
-        for(let i=0; i < this.nodes.length; i++) {
-            if(this.nodes.length) {
-                this.nodes[i].clear();
-              }
-        }
-
-        this.nodes = [];
-    };
+      return state }
+    }
 
 
-type ModulationMap =
-  { [key: string]: GetNumber }
-
-
-type Controls = string[]
-
-
-type Empty = null | undefined
-
-
-type SideFX = void
-
-
-type Player = UnitPosition & Stats & { name: string }
-
-
-type Drone = UnitPosition &
-  { shield: number, name: string }
-
-
-// global constants
-const canvasWidth = 800
-const canvasHeight = 450
+const canvasWidth = window.innerWidth
+const canvasHeight = window.innerHeight
 const playerHeight = 80
 const playerWidth = 80
 const droneWidth = 50
 const droneHeight = 50
+const elementRadius = 30
 
 const config = {
   canvasWidth,
@@ -396,8 +334,29 @@ const config = {
 }
 
 
+const tiny = (n, scale = 3) => n * pow(10,-(scale))
 
-const aN: (a:any) => boolean = n => !isNaN(n)
+
+const throttle = (seconds = 2) => 
+  setTimeout(() => {debugger},seconds*1000)
+
+
+const aN: (a:any) => boolean = n => 
+  (!isNaN(n) && typeof n == 'number')
+
+
+const toColor = (rgb: RGB, mod = (n, time) => n): string => {
+  if (rgb.length != 3) {
+    return ''
+  }
+
+  const [r,g,b] = rgb.map(mod).map(n => n.toString())
+  return `rgb(${r},${g},${b})`
+}
+
+
+const randomInt = (min = 0, max = 1) => 
+  floor(random() * (floor(max) - ceil(min) + 1)) + ceil(min);
 
 
 const log = (...any: any[]): SideFX => 
@@ -408,40 +367,18 @@ const coinToss = (): boolean =>
   (Math.random() < 0.5)
 
 
-const isNearWall = <U extends UnitPosition>(u: U, threshold = 0.1): boolean => {
-  return (u.x <= canvasWidth * threshold) && (u.y <= canvasHeight * threshold)
-}
+const isNearWall = <U extends UnitPosition>(u: U, threshold = 0.1): boolean => 
+  (u.x <= canvasWidth * threshold) && (u.y <= canvasHeight * threshold)
 
 
 const walk = <U extends UnitPosition>(u: U, step = 1 ): U => {
-  let p = u.lastwalk ? 'x' : 'y'
-  u[p] = coinToss() ? u[p] + 1 : u[p] - 1
-  u.lastwalk = !u.lastwalk
-  return u
+  let direction = u.lastwalk ? 'x' : 'y'
+  return (
+    { ...u
+    , lastwalk: !u.lastwalk
+    , [direction]: coinToss() ? u[direction] + 1 : u[direction] - 1
+    })
 } 
-
-
-const off = (el, name, fn) => 
-  el.removeEventListener(name, fn)
-
-
-const on = (el, name, fn) => {
-  el.addEventListener(name, fn)
-  return function cleanup() {off(el, name, fn)}
-}
-
-
-const throttle = (seconds = 2) => 
-  setTimeout(() => {debugger},seconds*1000)
-
-
-const changePosition = <T extends Object>(prev: T, changes: any): T  => {
-  return Object.keys(prev).reduce((next, key) => {
-    return (typeof changes[key] == 'undefined')
-      ? next
-      : {...next, [key]: changes[key](prev[key])}
-    }, <T>{})
-}
 
 
 const moveLeft = <U extends UnitPosition>(u: U , amt=7): U => 
@@ -470,6 +407,78 @@ const fire = <U extends UnitPosition>(time, state: State): State => {
     { ...state
     , drops: drops.concat({type: 'attack', origin})
     })
+}
+
+
+const objectID = () => {
+ //@ts-ignore property prev does not exist on object of type 
+ if (typeof objectID.prev == 'undefined') 
+ //@ts-ignore
+   objectID.prev = 0
+
+ //@ts-ignore
+ return objectID.prev++
+}
+
+
+const createPlayer = (): Player => {
+  return (
+  { objectID: objectID()
+  , name: 'player'
+  , width: playerWidth
+  , height: playerHeight
+  , x: canvasWidth - playerWidth
+  , y: 10
+  , strength: 100
+  , speed: 100
+  , luck: 100
+  })
+}
+
+
+const createDrone = (defaults = {}): Drone => {
+  const bias = 0.7; // favor the center of the room
+  return Object.assign(
+    { objectID: objectID()
+    , name: 'drone'
+    , x: bias * Math.random() * canvasWidth
+    , y: bias * Math.random() * canvasHeight
+    , width: 40
+    , height: 40
+    , lastwalk: false
+    }, <Drone>defaults )
+}
+
+
+const createOpeningMusicDrops = (qty = 3) => {
+  const drops = []
+  const containerWidth = canvasWidth*2/qty
+  const offsetWall = canvasWidth/qty
+  const offsetCeiling = canvasHeight/qty
+  const elWidth = containerWidth/qty
+
+  for (let i = 0; i < 3; i++) {
+    const x = offsetWall + (i*elWidth)
+    const y = offsetCeiling 
+    const radius = 1+ 40 * abs(sin((1+i)))
+    drops.push(createMusicDrop({x, y, radius, role: Role.bass, clan: Clan[Clan[i]]}))
+  }
+  return drops
+}
+
+
+const createMusicDrop = (defaults = {}) => {
+  return Object.assign(
+    { objectID: objectID()
+    , name: 'element'
+    , clan: ''
+    , x: 0
+    , y: 0
+    , radius: elementRadius
+    , dr: (time, index = 1) => 1+ 40 * abs(sin((1+index)*tiny(time)))
+    , width: 0
+    , height: 0
+    }, defaults )
 }
 
 
@@ -506,8 +515,140 @@ const applyActions = (state, controlKey): State => {
 }
 
 
+const applyToTree = <U extends UnitPosition>(time, tree: QTInterface, u: U): QTInterface => {
+  let {x, y, width, height, radius} = u
 
-const game: Game = () => {
+  width = (typeof u.dx == 'function')
+    ? u.dx(time, u.x)
+    : u.x + width;
+
+  height = (typeof u.dy == 'function')
+    ? u.dy(time, u.y)
+    : u.y + height;
+
+  if (typeof radius == 'number') {
+    radius = (typeof u.dr == 'function')
+      ? u.dr(time, radius)
+      : radius + sqrt(Math.pow(width,2) + Math.pow(height,2))
+    width = height = radius
+  }
+
+
+  tree.insert({...u, x, y, width, height})
+  return tree
+}
+
+
+/* Global handler for store state updates */
+const updateTreeIndices = <Tree>(time, state: State, tree: Tree): Tree => {
+  const next = ([state.player, ...state.drones, ...state.drops]).reduce(function add(tree, u) {
+    return applyToTree(time, tree, u)}
+    ,tree)
+  return next
+}
+
+
+const handleCollisions = (state, tree): any[] => {
+  const {player} = state
+  const intersections = tree.retrieve({
+    x: player.x,
+    y: player.y,
+    width: player.width,
+    height: player.height
+  });
+
+  const collides = (unit) => {
+    if (unit.name == 'player' ) 
+      return false
+
+    return !(
+      unit.x > player.x + player.width ||
+      unit.x + unit.width < player.x ||
+      unit.y > player.y + player.height ||
+      unit.y + unit.height < player.y
+    );
+  }
+
+  return intersections.filter(collides)
+}
+
+
+const addToAssemblage = (assemblage: Assemblage, clan: Clan, key: Role, amt = 2): Assemblage => {
+  if  (assemblage[key].clan != clan) {
+    const preset = Presets[clan]
+    // Swap the previous type with the new one
+    assemblage[key].clan = clan
+    assemblage[key].strength = amt
+    assemblage[key].bpm = preset.bpm
+    assemblage[key].tonic = preset.tonic
+    assemblage[key].melody = preset.voices[key]
+  } else {
+    assemblage[key].strength += amt
+  }
+  return assemblage
+}
+
+
+function getSynth(role: Role): Synth {
+  const roles = 
+    { 'bass': partBass
+    , 'tenor': partHarmony
+    , 'alto': partLead
+    , 'sorpano': partHarmony
+    }
+    return (roles[role] || partHarmony)
+}
+
+
+
+// reindexes the list to start at `index`
+function beatmatch(index, list: any[]) {
+  return [...list.concat().slice(index, list.length), ...list.concat().slice(0, index)]
+}
+
+const choppy = x => 
+ 0.5
+
+
+const shortening = x => {
+  let duration = 1/(x+1)
+  return duration
+} 
+
+
+const tenuto = x => 
+  0.85
+
+
+const sostenuto = x => 
+  0.99
+
+
+const getDuration = (role: Role) => {
+  const roles = 
+    { 'bass': choppy
+    , 'tenor': tenuto
+    , 'alto': shortening
+    , 'sorpano': sostenuto
+    }
+    return (roles[role] || tenuto)
+}
+
+function game() {
+  const controls: Controls = []
+  const state: State = 
+    { player: createPlayer()
+    , assemblage:
+      { [Role.bass]: <SoundSource>{ strength: 1 }
+      , [Role.tenor]: <SoundSource>{ strength: 1 }
+      , [Role.alto]: <SoundSource>{ strength: 1 }
+      , [Role.soprano]: <SoundSource>{ strength: 1 }
+      }
+    , drones: []
+    , drops: createOpeningMusicDrops()
+    , room: <Room><unknown>{ clan: null, role: Role.bass }
+    , level: 0
+    }
   
   const applyControls = (time, state: State): State => {
     return (
@@ -519,132 +660,72 @@ const game: Game = () => {
   }
 
 
-type Synth = typeof partBass | typeof partHarmony | typeof partLead
+  const updateSound = (state: State, ctx: AudioContext): SideFX => {
+    const { assemblage } = state
 
-
-function getSynth(role: Role): Synth {
-  const roles = 
-    { 'bass': partBass
-    , 'tenor': partHarmony
-    , 'alto': partLead
-    , 'sorpano': partHarmony
-    }
-    return (roles[Role[role]] || partHarmony)
-}
-
-
-// reindexes the list to start at `index`
-function beatmatch(index, list: any[]) {
-  return [...list.concat().slice(index, list.length), ...list.concat().slice(0, index)]
-}
-
-
-const updateSound = (state: State, ctx: AudioContext): SideFX => {
-  const { assemblage } = state
-
-  const now = ctx.currentTime
-  Object.entries(assemblage).forEach(([role, part]) => {
-    if (part.strength == 0) {
-      if (typeof part.sequencer != 'undefined') {
-        part.sequencer.stop()
-        delete part.sequencer
+    const now = ctx.currentTime
+    Object.entries(assemblage).forEach(([role, part]) => {
+      if (part.strength == 1) {
+        if (typeof part.sequencer != 'undefined') {
+          part.sequencer.stop()
+          delete part.sequencer
+        }
+        return
       }
-      return
-    }
 
-    const synth = getSynth(Role[role])
-    const beat = getBeatIndex(now, part.bpm, part.melody)
+      const synth = getSynth(role)
+      const beat = getBeatIndex(now, part.bpm, part.melody)
 
-    // start the first one
-    if (typeof part.sequencer == 'undefined') {
-      const notes = intervalsToMelody(part.tonic, x => 1, beatmatch(beat, part.melody))
-      const play = synth(now, part.bpm, notes)
-      part.sequencer = play()
-      part.sequencer.osc.onended = (): SideFX => {
-        delete part.sequencer
+      // start the first one
+      if (typeof part.sequencer == 'undefined') {
+        const notes = intervalsToMelody(part.tonic, getDuration(role), beatmatch(beat, part.melody))
+        const play = synth(now, part.bpm, notes)
+        part.sequencer = play()
+        part.sequencer.osc.onended = (): SideFX => {
+          delete part.sequencer
+        }
+        return
       }
-      return
-    }
 
-    // set up the next loop
-    if ((typeof part?.sequencer?.osc.onended == 'undefined') && beat == (part.melody.length - 1)) {
-      const beatWidth = getBeatLength(part.bpm)
-      const notes = intervalsToMelody(part.tonic, x => 1, part.melody)
-      part.sequencer.osc.onended = (): SideFX => {
-        delete part.sequencer
+      // set up the next loop
+      if ((typeof part?.sequencer?.osc.onended == 'undefined') && beat == (part.melody.length - 1)) {
+        const beatWidth = getBeatLength(part.bpm)
+        const notes = intervalsToMelody(part.tonic, getDuration(role), part.melody)
+        part.sequencer.osc.onended = (): SideFX => {
+          delete part.sequencer
+        }
       }
-    }
-  })
-}
-
-  
-  const createRoom: CreateRoom = (clan, role) => (
-    { clan
-    , role
     })
-
-
-
-  const createPlayer = (): Player => {
-    return (
-    { name: 'player'
-    , width: playerWidth
-    , height: playerHeight
-    , x: canvasWidth - playerWidth
-    , y: 10
-    , strength: 100
-    , speed: 100
-    , luck: 100
-    })
-  }
-
-
-  const createDrone = (defaults = {}): Drone => {
-    return Object.assign(
-      { name: 'drone'
-      , x: Math.random() * canvasWidth
-      , y: Math.random() * canvasHeight
-      , width: 40
-      , height: 40
-      , lastwalk: false
-      }, <Drone>defaults )
-  }
-
-
-  const createMusicDrop = (defaults = {}) => {
-    return Object.assign(
-      { name: 'element'
-      , clan: ''
-      , x: Math.random() * canvasWidth
-      , y: Math.random() * canvasHeight
-      , width: 40
-      , height: 40
-      }, defaults )
   }
 
 
   const drawNPCS: StatefulDraw = (time, state): Draw => {
-    const color = clanAttributes[state.room.clan].color
-    const text = clanAttributes[state.room.clan].text
+    const cAttrs = clanAttributes[state.room.clan]
+    const rAttrs = roleAttributes[state.room.role]
     return (ctx) => {
       state.drones.forEach( ({x,y},i) => {
-        ctx.fillStyle = color
-        ctx.fillText(text.repeat(2), x+droneWidth, y+droneHeight)  
+        ctx.fillStyle = toColor(cAttrs.rgb, rAttrs.colorMod)
+        ctx.fillText(rAttrs.text.repeat(2), x+droneWidth, y+droneHeight)  
       } )
     }
   }
 
 
   const drawDrops: StatefulDraw = (time, state): Draw => {
+    const rgb = [0,0,0]
     return (ctx) => {
       drawDoors(ctx, state.room.clan)
       state.drops.forEach( ({x,y,width,height},i) => {
-        const startAngle = 0 + tiny(time)
-        const endAngle = (Math.PI/4) + tiny(time)
-        ctx.fillStyle = 'magenta'
-        ctx.arc(x, y, 30, startAngle, endAngle);
-        ctx.stroke();
-        ctx.fill();
+        for (let j =0; j < 3; j++) {
+          rgb[i] = 255
+          const offset =  + tiny(time) + (PI*j/4)
+          const startAngle = 0 + offset
+          const endAngle = (Math.PI/4) + offset
+          ctx.fillStyle = toColor(rgb)
+          ctx.arc(x, y, 30, startAngle, endAngle);
+          ctx.stroke();
+          ctx.fill();
+        }
       } )
     }
   }
@@ -670,17 +751,69 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
     let th = 80
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
-    ctx.stokeStyle = 'cyan'
-
 
     for (let i=0;i<nx;i++) {
-      let r = (i *tiny(time, 3)) % 255
+      // let r = (i *tiny(time, 3)) % 255
+      let r = (time) % 255
       for (let j=0;j<ny;j++) {
-        let g = (j *tiny(time, 2)) % 255
-        let b = (i+j *tiny(time, 3)) % 255
+        let g = (time+(time/j)) % 255
+        let b = (time+(time/i)) % 255
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
-        // ctx.strokeRect(i*tw, j*th, i*tw + tw, j*tw+tw)
+      }
+    }
+  }
+
+
+  const drawTiles2 = (time, ctx): SideFX => {
+    let tw = 20
+    let th = 20
+    let nx = canvasWidth / tw
+    let ny = canvasHeight / th
+
+    for (let i=0;i<nx;i++) {
+      let r = (i *tiny(time, 1)) % 255
+      for (let j=0;j<ny;j++) {
+        let g = (j *tiny(time, 2)) % 255
+        let b = (i+j *tiny(time, 4)) % 255
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
+        ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
+      }
+    }
+  }
+
+
+  const drawTiles3 = (time, ctx): SideFX => {
+    let tw = 20
+    let th = 20
+    let nx = canvasWidth / tw
+    let ny = canvasHeight / th
+
+    for (let i=0;i<nx;i++) {
+      let r = (i *tiny(time, 1 +time%5)) % 255
+      for (let j=0;j<ny;j++) {
+        let g = (j *tiny(time, time%2)) % 255
+        let b = (i+j *tiny(time, time%4)) % 255
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
+        ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
+      }
+    }
+  }
+
+
+  const drawTiles4 = (time, ctx): SideFX => {
+    let tw = time % 200
+    let th = time % 100
+    let nx = canvasWidth / tw
+    let ny = canvasHeight / th
+
+    for (let i=0;i<nx;i++) {
+      let r = (i *tiny(time, 1 +time%5)) % 255
+      for (let j=0;j<ny;j++) {
+        let g = (j *tiny(time, time%2)) % 255
+        let b = (i+j *tiny(time, time%4)) % 255
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
+        ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
       }
     }
   }
@@ -694,16 +827,23 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
     let offsetCeiling = (canvasHeight-doorHeight)/3
 
     // left door
-    ctx.fillStyle = clanAttributes[altClans[0]].color
+    ctx.fillStyle = toColor(clanAttributes[altClans[0]].rgb)
     ctx.fillRect(offsetWall, offsetCeiling, offsetWall + doorWidth, offsetCeiling + doorHeight)
 
     // right door
-    ctx.fillStyle = clanAttributes[altClans[1]].color
+    ctx.fillStyle = toColor(clanAttributes[altClans[1]].rgb)
     ctx.fillRect(canvasWidth-offsetWall-doorWidth, offsetCeiling, canvasWidth-offsetWall+doorWidth, offsetCeiling + doorHeight)
   }
 
 
   const drawRoom: StatefulDraw = (time, state): Draw => {
+    // let selection = floor(tiny(time,3))%4
+    // let render = (
+    //   [ drawTiles
+    //   , drawTiles2
+    //   , drawTiles3
+    //   , drawTiles4
+    //   ])[selection]
     return (ctx) => {
       drawTiles(time, ctx)
       ctx.strokeStyle = "black"
@@ -712,11 +852,16 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
   }
 
 
+  const drawAssemblageOverlay = (time, state): Draw => {
+    return (ctx) => {
+
+    }
+  }
+
   const addControlKey: ControlListener = (key) => {
     // @ts-ignore TS2339
     return controls.includes(key) ? controls : controls.concat(key)
   }
-
 
   const removeControlKey: ControlListener = (key) => 
     controls.filter(k => k !== key)
@@ -727,7 +872,6 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
       return
 
     game.controls = game.controls.concat(e.key)
-
     const remove = () => {
       game.controls = game.controls.filter(k => k !== e.key)
     }
@@ -756,10 +900,9 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
     illustrate( (ctx) => ctx.clearRect(0,0, canvasWidth, canvasHeight))
 
     if (state.level == 0) {
-      openingRoom(time, state, illustrate)
+      openingScene(time, state, illustrate)
       return
     }
-
 
     if (state.drops.length > 0) {
       dropScene(time, state, illustrate)
@@ -770,13 +913,13 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
 
 
   const swarmScene = (time, state, illustrate) => {
-    // illustrate( drawRoom(time, state) )
+    illustrate( drawRoom(time, state) )
     illustrate( drawNPCS(time, state) )
     illustrate( drawPlayer(time, state) )
   }
 
 
- const dropScene = (time, state, illustrate) => {
+  const dropScene = (time, state, illustrate) => {
     // illustrate( drawRoom(time, state) )
     illustrate( drawDrops(time, state) )
     illustrate( drawPlayer(time, state) )
@@ -792,132 +935,6 @@ const updateSound = (state: State, ctx: AudioContext): SideFX => {
     return updateListeners.prev || []
   }
 
-
-  const applyToTree = <U extends UnitPosition>(time, tree: QTInterface, u: U): QTInterface => {
-    let {x, y, width, height, radius} = u
-
-    width = (typeof u.dx == 'function')
-      ? u.dx(time, u.x)
-      : u.x + width;
-
-    height = (typeof u.dy == 'function')
-      ? u.dy(time, u.y)
-      : u.y + height;
-
-    if (typeof radius == 'number') {
-      radius = (typeof u.dr == 'function')
-        ? u.dr(time, radius)
-        : radius + sqrt(Math.pow(width,2) + Math.pow(height,2))
-      log(`applied radius value:${radius}`)
-      width = height = radius
-    }
-    tree.insert({...u, x, y, width, height})
-    return tree
-  }
-
-  function addOpeningElementsToTree(time, tree) {
-    const clans = Object.keys(Clan).map(a => parseInt(a)).filter(aN)
-    const containerWidth = canvasWidth*2/3
-    const offsetWall = canvasWidth/3
-    const offsetCeiling = canvasHeight/3
-    const elWidth = containerWidth/clans.length
-    
-    for(let i = 0; i < clans.length; i++) {
-      const x = offsetWall + (i*elWidth)
-      const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
-      const radius = 1+ 40 * abs(sin((1+i)*tiny(time)))
-      tree.insert({name: `element`, clan: Clan[i], x, y, radius})
-    }
-
-    return tree
-  }
-
-
-  /* Global handler for store state updates */
-  const updateTreeIndices = <Tree>(time, state: State, tree: Tree): Tree => {
-    if (state.level == 0) {
-      return addOpeningElementsToTree(time, tree)
-    }
-    const next = ([state.player, ...state.drones, ...state.drops]).reduce(function add(tree, u) {
-      return applyToTree(time, tree, u)}
-      ,tree)
-    // @ts-ignore
-    window.log = () => log(next)
-    return next
-  }
-
-
-  const handleCollisions = (state, tree): any[] => {
-    const {player} = state
-    const intersections = tree.retrieve({
-      x: player.x,
-      y: player.y,
-      width: player.width,
-      height: player.height
-    });
-
-    const collides = (unit) => {
-      if (unit.name == 'player' ) 
-        return false
-
-      return !(
-        unit.x > player.x + player.width ||
-        unit.x + unit.width < player.x ||
-        unit.y > player.y + player.height ||
-        unit.y + unit.height < player.y
-      );
-    }
-
-    return intersections.filter(collides)
-  }
-
-
-  const addToAssemblage = (assemblage: Assemblage, clan: Clan, role: Role, amt = 2): Assemblage => {
-    const key = Role[role]
-    if  (assemblage[key].clan != clan) {
-      const preset = Presets[Clan[clan]]
-      // Swap the previous type with the new one
-      assemblage[key].clan = clan
-      assemblage[key].strength = amt
-      assemblage[key].bpm = preset.bpm
-      assemblage[key].tonic = preset.tonic
-      assemblage[key].melody = preset.voices[key]
-    } else {
-      assemblage[key].strength += amt
-    }
-    return assemblage
-  }
-
-
-
-const touchHandlers = 
-  { drone(state, touches) {
-      const drones = state.drones.filter(d =>!touches.includes(d))
-
-      return drones.length > 0 
-        ? {...state, drones}
-        : {...state, drones, level: state.level + 1} }
-
-  , element(state, touches) {
-      const element = touches[0]
-      const room = 
-        { clan: element.clan
-        , role: (state.level == 0) ? Role.bass : element.role }
-      const assemblage = addToAssemblage(state.assemblage, room.clan, room.role)
-
-      return (
-        { ...state
-          , assemblage
-          , room
-          , drops: []
-          , level: state.level + 1} ) }
-
-  , buff(state) {
-
-    return state }
-  }
-
-
   const handleTouches = (state, touches): State => {
     if (touches.length == 0)
       return state
@@ -927,27 +944,38 @@ const touchHandlers =
   }
 
 
+  const enumKeys = (e) =>
+    Object.keys(e).map(a => parseInt(a)).filter(aN)
+
+
+  /** Create a room with new values compared to a previous room. */
+  const nextRoom = (pClan: Clan, pRole: Role): Room => {
+    const altClans = enumKeys(Clan).filter(k => k!= pClan)
+    const altRoles = enumKeys(Role).filter(k => k!= pRole)
+    const clan =altClans[randomInt(0,altClans.length-1)]
+    const role = altRoles[randomInt(0,altRoles.length-1)]
+    return {clan, role}
+  }
+
+
   const setupNextLevel = (state: State): State => {
-    const room = nextRoom( state.room.clan, state.room.role )
+    const room = nextRoom(state.room.clan, state.room.role)
     const drones = getDrones(state.level * 2)
     return {...state, drones, room}
   }
 
 
   const setupDrops = (state: State): State => {  
-    // const unit = createMusicDrop({x, y, width: radius, height: radius, clan: Clan[i]})
+    // const unit = f({x, y, width: radius, height: radius, clan: Clan[i]})
     const element = createMusicDrop(
       { name: 'element'
       , x: canvasWidth / 2
       , y: canvasHeight / 2
-      , radius: 0
-      , dr: (time, index = 1) => 1+ 40 * abs(sin((1+index)*tiny(time)))
       , clan: state.room.clan
       , role: state.room.role
       })
     return {...state, drops: [element]}
   }
-
 
   const loop: HandleTick = (time, prev: State, draw, tree) => {
     tree.clear()
@@ -959,6 +987,11 @@ const touchHandlers =
     const collisions = handleCollisions(next, tree)
     if (collisions.length > 0) {
       next = handleTouches(next, collisions)
+    }
+
+    if (Object.values(next.assemblage).some(part => part.strength <= 0)) {
+      log(`you got killdead`)
+      throw 'done'
     }
 
     if (prev.level != next.level) {
@@ -974,48 +1007,28 @@ const touchHandlers =
   }
 
 
-  /** Grabs the rendering context to provide render callback. */
   const playback: Setup = (state, tick, config) => {
     const {canvasWidth, canvasHeight} = config
     const canvas = document.createElement('canvas')
+    canvas.width = canvasWidth
+    canvas.height = canvasHeight
     const ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
     ctx.font = '50px monospace'
+    document.body.appendChild(canvas)
     
-    const draw: Illustrate = (d: Draw): SideFX  => {
+    const scene: Illustrate = (draw: Draw): SideFX  => {
       ctx.beginPath()
-      d(ctx)
+      draw(ctx)
       ctx.closePath()
     }
 
     const tree = new Quadtree({x: 0, y: 0, width: canvasWidth, height: canvasHeight }, 3, 4);
-    tick(0, state, draw, tree)
+    tick(0, state, scene, tree)
   }
 
 
-  const { abs, sin, cos, pow, sqrt } = Math
-  const tiny = (n, scale = 3) => n * pow(10,-(scale))
-  const controls: Controls = []
-  const state: State = 
-    { player: createPlayer()
-    , assemblage:
-        { bass: <SoundSource>{ strength: 0 }
-        , tenor: <SoundSource>{ strength: 0 }
-        , alto: <SoundSource>{ strength: 0 }
-        , soprano: <SoundSource>{ strength: 0 }
-        }
-    , drones: []
-    , drops: 
-      [ createMusicDrop({role: Role.bass, clan: Clan.Red, radius: (time, index = 1) => 1+ 40 * abs(sin((1+index)*tiny(time)))})
-      , createMusicDrop({role: Role.bass, clan: Clan.Yellow, radius: (time, index = 2) => 1+ 40 * abs(sin((1+index)*tiny(time)))})
-      , createMusicDrop({role: Role.bass, clan: Clan.Blue, radius: (time, index = 3) => 1+ 40 * abs(sin((1+index)*tiny(time)))})
-      ]
-    , room: <Room><unknown>{ clan: null, role: null }
-    , level: 0
-    }
-
-
-  const openingRoom = (time, state, illustrate) => {
-    const clans = Object.keys(Clan).map(a => parseInt(a)).filter(aN)
+  const openingScene = (time, state, illustrate) => {
+    const clans = enumKeys(Clan)
     const containerWidth = canvasWidth*2/3
     const offsetWall = canvasWidth/3
     const offsetCeiling = canvasHeight/3
@@ -1023,103 +1036,35 @@ const touchHandlers =
     
     illustrate((ctx) => drawTiles(time, ctx))
 
-    for(let i = 0; i < clans.length; i++) {
+    state.drops.forEach((unit, i) => {
       illustrate((ctx) => {
-        state.drops.forEach((unit, j) => {
-          const x = offsetWall + (i*elWidth)
-          const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
-          const radius = unit.radius(time,j)
-          // apply these here so they are stored for next tree insertion
-          unit.width = radius
-          unit.height = radius
+        const attrs =clanAttributes[i]
+        const rAttrs =roleAttributes[i]
+        const x = offsetWall + (i*elWidth)
+        const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
+        const radius = unit.dr(time,i)
+        // apply these here so they are stored for next tree insertion
+        unit.width = radius
+        unit.height = radius
 
-          ctx.fillStyle = ctx.strokeStyle = clanAttributes[i].color
-          ctx.arc(x, y, radius, 0, 2 * Math.PI)
-          ctx.fill()
-          ctx.stroke()
-        })
-      } )
-    }
-    illustrate( drawPlayer(time, state) )
-  }
-
-
-  /** Create a room with new values compared to a previous room. */
-  const nextRoom = (pClan: Clan, pRole: Role): Room => {
-    const altClans = Object.keys(Clan).map(a => parseInt(a)).filter(c => (c !== pClan) && aN(c))
-    const altRoles = Object.keys(Role).map(a => parseInt(a)).filter(r => (r !== pRole) && aN(r))
-    
-    return (
-      { clan: altClans[Number(coinToss())]
-      , role: altRoles[Number(coinToss())]
+        ctx.fillStyle = ctx.strokeStyle =  toColor(attrs.rgb,rAttrs[i])
+        ctx.arc(x, y, radius, 0, 2 * Math.PI)
+        ctx.fill()
+        ctx.stroke()
       })
+    })
+
+    illustrate(drawPlayer(time, state))
   }
 
   playback(state, loop, config)
 }
 
 
-
 const getSoundtrackParts = (clan: Clan, role: Role): [number,number][] => {
   const notes = []
   return notes
 }
-
-
-type Voice = 
-  { bpm: number
-  , dt: number
-  , dv: number
-  , tonic?: number
-  , melody?: number[] // intervals
-  , notes?: number[][] // [freq, duration] point in soundspace
-  , sequencer?: any
-  , next?: any
-  }
-
-
-type SoundSource = (Voice | null) & { strength: number, next?: typeof Sequence }
-
-type Assemblage = 
-  { bass: SoundSource
-  , tenor: SoundSource
-  , alto: SoundSource
-  , soprano: SoundSource
-  }
-
-
-const Presets = 
-  { [Clan.Yellow]: 
-    { tonic: 80
-    , bpm: 70
-    , voices:
-      { bass: [0, 3, 4, 5, 3, 5, 12, 7]
-      , tenor: [0, 5, NaN, 5]
-      , alto: [2, 2, NaN]
-      , soprano: [7, 7, NaN, 9, 7, 7, 9, 13]
-      }
-    }
-  , [Clan.Red]: 
-    { tonic: 106.66
-    , bpm: 93.333
-    , voices: 
-      { bass: [7, 0, 7, 7]
-      , tenor: [3, 3, 2, 3, 5, 3, 2, 0]
-      , alto: [NaN, 5, 3, 5]
-      , soprano: [10, NaN, NaN, 10, 12, 11, 9, NaN]
-      }
-    }
-  , [Clan.Blue]:
-    { tonic: 142
-    , bpm: 124.44
-    , voices: 
-      { bass: [12, 9, 8, 7, 9, 7, 0, 5]
-      , tenor: [3, 3, 2, 3, 5, 3, 2, 0]
-      , alto: [10, 10, NaN]
-      , soprano: [10, NaN, NaN, 10, 12, 11, 9, NaN]
-      }
-    }
-  }
 
 
   /**

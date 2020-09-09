@@ -1,71 +1,62 @@
+
+
+# Bard Fantasy
+
+
 theme: 404
-
- - -  - -
-
- Roguelike
-
-  - - - - - - - - 
+  mechanic is as follows
+  The player must complete the first boss with all four parts assembled
+  The next boss must be finished with no parts assembld
+  The final boss must be finished with all four parts assembled
 
 
-  Hack n Slash
+player attack
+  Drops a bomb with burst radius, cooldown is 2s
+  ?lazer pickup only
 
 
-When you enter a room, a swarm of clansmen appear! They will be one of these roles - 
-Bass 
-Tenor
-Alto
-Soprano
+monster attack
+  projectile
+  burst
+  melee
+  theft
 
 
+You (?the player!) may choose one of two types for a gameplay leaning towards one side. 
+
+
+###  Player Type
+
+
+!! - Brutal: Driven by melee combat
+?? - Strategic: Driven by pickup selection
+
+When you enter a room, a swarm of clansmen appear! 
 They fight you, you fight them. You will probably win most of the time.
 When you lose you di
 
 
-Once the swarm is all killdead: Two drops appear. 
-One is a musical element. It adds to your shield. 
-The other is a buff. It is a skill boost.
+Once the swarm is all killdead, two drops appear. 
+One is a musical element. It adds to your assemblage. 
+The other is a buff. Hope it helps.
 
 
-Musical Element: It will be one of the four parts to the shield!
-The part that it plays depends on the clan it came from. How loud it is depends on the health of that part.
+Element: It will be one of the four parts to the assemblage!
+The part that it plays depends on the clan it came from. How loud it is depends on the strength of that part.
 
 
-Select one, the other drop fades away and two doors open: Each leading to a room with a different clan.
+Select one drop, the other drop fades away and two doors open: Each leading to a room with a different clan.
 
 
-Keep fighting until you find all four parts to the same song. Only then do you unlock the Final Door
+Keep trekking until your assemblage is complete. Then you are set for trial against the first Boss.
+Beat the boss
+Follow the directions
+And beat the next boss with no assemblage.
 
-
-Buff: It will make you a better person! Faster, or stronger, or luckier. 
-
-
-Shield: Each of the 4 voices is a shield to attacks (for both player and NPC)
-The number of hits it can take correlates to the part of voice.
-
+Once you have proven your skill both with and without your Assemblage, then you may fight the final Boss.
 
     Bass > x < Soprano
-
     Tenor <x x> Alto
-
-
-When all 4 parts are unified, the soundtrack is assembled and opens the Boss gate.
-
-
-The volume represents the health of that part.
-The type represents the genre.
-
-
-So if your shield looks like this: 
-
-
-Bass: 3 health, Trap 
-Tenor: 2 health, Techno
-Alto: 2 health, Trap
-Treble: 3 health, Liquid
-
-
-then your song will be mostly Trap with the loudest parts being the low bass and high treble notes.
-
 
  # #  # #
 
@@ -76,7 +67,8 @@ Controls
 
 arrow keys - movement
 spacebar - attack
-F - swap weapon
+F - Drop Bomb
+S - Fire burst
 
 
  @ @  @ @ 
@@ -86,9 +78,36 @@ Drops
   @ @ @ @ @ @ @ @ @
 
 
-Speed boost
-Damage boost
-Drop boost
+A buff is a boost in skill or other change in game state to the player's benefit.
+It is represented by a unique ASCII character. The same character represents the same type of buff on each playthrough.
+Buff does affect player width. The more buffs being carried, the more area the player covers.
+
+###  Player buffs
+
+λ - Bloodline, when the completed assemblage is destroyed, collecting a child assembalge of same type is 1.5x stronger
+* - Shots, consumable manual burst lazer shots
+& - Heatup, lowers the cooldown time for bomb
+~ - Luck, stackable for better rolls in player's favor
++! - Safety, lessens damage to AT
++? - Safety, lessens damage to BS
+  Monster Buffs
+
+###  Monster Buffs
+
+2 - Two Claw, attacks damage a secondary shield type
+. - Curse, next drop is guaranteed to be monster buff
+
+
+The buff is visibily stored between the player's two identifier characters. 
+For example, a Brutalist with Luck, Heatup and Two Claw looks like this
+ 
+!~&2!  
+  
+
+
+Another example, a Strategist with Shots, Bloodline, and Curse looks like this
+
+?*λ.?
 
 
  ^ ^  ^ ^
@@ -101,4 +120,3 @@ Rooms
 Complete visibility inside
 Typehint at doorway
 One clan of enemies of one type of role
-

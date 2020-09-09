@@ -2,9 +2,22 @@ import { transpose } from './music'
 
 
 export const ac = new AudioContext()
+const delay = ac.createDelay(4)
+delay.delayTime.value = (60/120/4) //quarter note at 120bpm
+
+// const source = ac.createBufferSource();
+// source.buffer = buffers[2];
+// source.loop = true;
+// source.start();
+// source.connect(delay);
+delay.connect(ac.destination);
 
 
-type Note = [number, number] | number[][]
+
+export type Note = [number, number] | number[][]
+
+
+export type Synth = typeof partBass | typeof partHarmony | typeof partLead
 
 
 function Note( freq, duration ) {
@@ -26,12 +39,23 @@ export function Sequence( tempo, notes: Note[] = []) {
 Sequence.prototype.createFxNodes = function() {
   const eq = [ [ 'bass', 100 ], [ 'mid', 1000 ] , [ 'treble', 2500 ] ]
   let prev = this.gain = this.ac.createGain();
-  eq.forEach(function( config, filter ) {
-    filter = this[ config[ 0 ] ] = this.ac.createBiquadFilter();
-    filter.type = 'peaking';
-    filter.frequency.value = config[ 1 ];
-    prev.connect( prev = filter );
+  eq.forEach(function( config, fx) {
+    fx = this[ config[ 0 ] ] = this.ac.createBiquadFilter();
+    fx.type = 'peaking';
+    fx.frequency.value = config[ 1 ];
+    prev.connect( prev = fx );
   }.bind( this ));
+
+  this.lp = this.ac.createBiquadFilter()
+  this.lp.type = 'lowpass'
+  this.lp.frequency.value = 15000
+  prev.connect(prev = this.lp)
+
+  this.hp = this.ac.createBiquadFilter()
+  this.hp.type = 'highpass'
+  this.hp.frequency.value = 80
+  prev.connect(prev = this.hp)
+
   prev.connect( this.ac.destination );
   return this;
 };
@@ -42,6 +66,12 @@ Sequence.prototype.createOscillator = function() {
   this.stop();
   this.osc = this.ac.createOscillator();
   this.osc.type = this.waveType || 'square';
+  this.gain.value = 0.1
+  if (this.type == 'lead') {
+    this.osc.connect(delay);
+    this.osc.connect(this.ac.destination);
+    this.osc.connect(this.ac.destination);
+  }
   this.osc.connect( this.gain );
   return this;
 };
@@ -110,8 +140,6 @@ Sequence.prototype.play = function( when ) {
   }.bind( this ));
 
   this.osc.stop( when );
-    // this.osc.onended = this.play.bind( this.next, when )
-
   return this;
 };
 
@@ -127,16 +155,6 @@ Sequence.prototype.stop = function() {
 };
 
 
-// const lead = (freq, duration = 1, notes = [4, 9, 9, 7, 4, 9, 10, 10, 11 ]): Note[] =>
-//   notes.map((interval,i) => [transpose(freq, interval), duration])
-
-// const harmony = (freq, duration = 1, notes = [0, 7, 5, 11, 7, 4, 7, 9]): Note[] =>
-//   notes.map((interval,i) => [transpose(freq, interval), duration])
-
-// const bass = (freq, duration = 1, notes = [12, 0, 10, 12, 0, 0, 7, 5]): Note[] =>
-//   notes.map((interval,i) => [transpose(freq, interval), duration])
-
-
 export const intervalsToMelody = (root, duration = (i) => 1, intervals: number[] = []): Note[] => 
   intervals.map((interval, i) => 
     ([isNaN(interval) ? 0 : transpose(root, interval), duration(i)]))
@@ -146,9 +164,13 @@ export const partLead = (when, tempo, melody: Note[]) => {
   const seq = new Sequence(tempo, melody);
   seq.staccato = 0.55;
   seq.gain.gain.value = 1.0;
+  seq.bass.frequency.value = 400;
+  seq.bass.gain.value = -4
   seq.mid.frequency.value = 800;
   seq.mid.gain.value = 3;
-  seq.osc.type = 'saw'
+  seq.waveType = 'square'
+  seq.hp.frequency.value = 1200
+  seq.role = 'lead'
 
   return function play() {
     seq.play(when)
@@ -162,12 +184,11 @@ export const partHarmony = (when, tempo, melody: Note[]) => {
   seq.mid.frequency.value = 1200;
   seq.gain.gain.value = 0.8;
   seq.staccato = 0.55;
-  seq.osc.type = 'sine'
+  seq.waveType = 'triangle'
   return function play() {
     seq.play(when)
     return seq
   }
-  // seq.play( when + ( 60 / tempo ) * 16 );
 }
 
 
@@ -175,16 +196,18 @@ export const partBass = (when, tempo, melody: Note[]) => {
   const seq = new Sequence(tempo, melody);
 
   seq.staccato = 0.05;
-  seq.smoothing = 0.4;
+  seq.smoothing = 0.05;
   seq.gain.gain.value = 0.65;
   seq.mid.gain.value = 3;
    
   seq.bass.gain.value = 6;
   seq.bass.frequency.value = 80;
-  seq.mid.gain.value = -6;
+  seq.mid.gain.value = -2;
   seq.mid.frequency.value = 500;
-  seq.treble.gain.value = -2;
+  seq.treble.gain.value = -4;
   seq.treble.frequency.value = 1400;
+  seq.waveType = 'square'
+
   return function play() {
     seq.play(when)
     return seq
@@ -212,11 +235,3 @@ export function getStartOfNextBar(time, bpm, notes) {
   const beatWidth = getBeatLength(bpm)
 
 }
-
-
- // export const demoMusic = (tempo = 132) => {
- //  const when = ac.currentTime
- //  playLead(when, tempo, lead(512))
- //  playHarmony(when, tempo, harmony(1024))
- //  playBass(when, tempo, bass(128))
- // }
