@@ -25,7 +25,7 @@ type Clansmen =
 
 
 type Stats = 
-  { strength: number
+  { volume: number
   , speed: number
   , luck: number
   }
@@ -43,7 +43,7 @@ type State =
   , drops: any[]
   , room: Room
   , level: number
-  , assemblage: Assemblage
+  , ensemble: Ensemble
   }
 
 
@@ -78,8 +78,6 @@ type Drone = UnitPosition &
 
 type Voice = 
   { bpm?: number
-  , dt: number
-  , dv: number
   , tonic?: number
   , melody?: number[] // intervals
   , notes?: number[][] // [freq, duration] point in soundspace
@@ -88,7 +86,7 @@ type Voice =
   }
 
 
-type SoundSource = (Voice | null) & { clan: Clan, strength: number, next?: typeof Sequence }
+type SoundSource = (Voice & { clan: Clan, volume?: number, next?: typeof Sequence }) | null
 
 
 type HeterogenousEnsemble =
@@ -98,7 +96,7 @@ type HeterogenousEnsemble =
   }}
 
 
-type Assemblage = 
+type Ensemble = 
   { [Role.bass]: SoundSource
   , [Role.tenor]: SoundSource
   , [Role.alto]: SoundSource
@@ -282,8 +280,8 @@ const Presets =
     }
 
 
-  const applyDroneDamage = (role, assemblage): Assemblage => {
-    const next = {...assemblage}
+  const applyDroneDamage = (role, ensemble): Ensemble => {
+    const next = {...ensemble}
     const mirrors = 
       [ [Role.bass, Role.soprano ]
       , [Role.tenor, Role.alto] ]
@@ -295,7 +293,7 @@ const Presets =
           ? 1
           : 2
 
-        next[role].strength = next[role].strength - dmg
+        next[role].volume = next[role].volume - dmg
       }
     }
 
@@ -305,8 +303,8 @@ const Presets =
 
   const touchHandlers = 
     { drone(state: State, touches) {
-        const assemblage = touches.reduce((assemblage, drone) => 
-          applyDroneDamage(state.room.role, state.assemblage), touches)
+        const ensemble = touches.reduce((ensemble, drone) => 
+          applyDroneDamage(state.room.role, state.ensemble), touches)
 
         const defenderIDs = touches.map(drone => drone.objectID)
 
@@ -326,11 +324,11 @@ const Presets =
         const room = 
           { clan: element.clan
           , role: (state.level == 0) ? Role.bass : element.role }
-        const assemblage = addToAssemblage(state.assemblage, room.clan, room.role)
+        const ensemble = addToEnsemble(state.ensemble, room.clan, room.role)
 
         return (
           { ...state
-            , assemblage
+            , ensemble
             , room
             , drops: []
             , level: state.level + 1} ) }
@@ -450,7 +448,7 @@ const createPlayer = (): Player => {
   , height: playerHeight
   , x: canvasWidth - playerWidth
   , y: 10
-  , strength: 100
+  , volume: 100
   , speed: 100
   , luck: 100
   })
@@ -594,19 +592,19 @@ const handleCollisions = (state, tree): any[] => {
 }
 
 
-const addToAssemblage = (assemblage: Assemblage, clan: Clan, key: Role, amt = 2): Assemblage => {
-  if  (assemblage[key].clan != clan) {
+const addToEnsemble = (ensemble: Ensemble, clan: Clan, key: Role, amt = 2): Ensemble => {
+  if  (ensemble[key].clan != clan) {
     const preset = Presets[clan]
     // Swap the previous type with the new one
-    assemblage[key].clan = clan
-    assemblage[key].strength = amt
-    assemblage[key].bpm = preset.bpm
-    assemblage[key].tonic = preset.tonic
-    assemblage[key].melody = preset.voices[key]
+    ensemble[key].clan = clan
+    ensemble[key].volume = amt
+    ensemble[key].bpm = preset.bpm
+    ensemble[key].tonic = preset.tonic
+    ensemble[key].melody = preset.voices[key]
   } else {
-    assemblage[key].strength += amt
+    ensemble[key].volume += amt
   }
-  return assemblage
+  return ensemble
 }
 
 
@@ -659,11 +657,11 @@ function game() {
   const controls: Controls = []
   const state: State = 
     { player: createPlayer()
-    , assemblage:
-      { [Role.bass]: <SoundSource>{ strength: 1 }
-      , [Role.tenor]: <SoundSource>{ strength: 1 }
-      , [Role.alto]: <SoundSource>{ strength: 1 }
-      , [Role.soprano]: <SoundSource>{ strength: 1 }
+    , ensemble:
+      { [Role.bass]: <SoundSource>{ volume: 1 }
+      , [Role.tenor]: <SoundSource>{ volume: 1 }
+      , [Role.alto]: <SoundSource>{ volume: 1 }
+      , [Role.soprano]: <SoundSource>{ volume: 1 }
       }
     , drones: []
     , drops: createOpeningMusicDrops()
@@ -681,9 +679,9 @@ function game() {
   }
 
 
-  const playMusicAssembly = (now: number, assemblage: Assemblage) => {
-    Object.entries(assemblage).forEach(([role, part]) => {
-      if (part.strength == 1) {
+  const playMusicEnsemble = (now: number, ensemble: Ensemble) => {
+    Object.entries(ensemble).forEach(([role, part]) => {
+      if (part.volume == 1) {
         if (typeof part.sequencer != 'undefined') {
           part.sequencer.stop()
           delete part.sequencer
@@ -718,13 +716,13 @@ function game() {
 
 
   const updateSound = (state: State, ctx: AudioContext): SideFX => {
-    const { assemblage } = state
+    const { ensemble } = state
 
-    if ( state.level == 0 ) {
-      playMusicAssembly(ctx.currentTime, Songs.opening)
-    } else {
-      playMusicAssembly(ctx.currentTime, state.assemblage)
-    }
+    // if ( state.level == 0 ) {
+    //   playMusicEnsemble(ctx.currentTime, Songs.opening)
+    // } else {
+      playMusicEnsemble(ctx.currentTime, state.ensemble)
+    // }
     
   }
 
@@ -882,7 +880,7 @@ function game() {
   }
 
 
-  const drawAssemblageOverlay = (time, state): Draw => {
+  const drawEnsembleOverlay = (time, state): Draw => {
     return (ctx) => {
 
     }
@@ -1019,7 +1017,7 @@ function game() {
       next = handleTouches(next, collisions)
     }
 
-    if (Object.values(next.assemblage).some(part => part.strength <= 0)) {
+    if (Object.values(next.ensemble).some(part => part.volume <= 0)) {
       log(`you got killdead`)
       throw 'done'
     }
