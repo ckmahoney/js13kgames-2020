@@ -37,20 +37,34 @@ type Room =
   }
 
 
+type Shot = 
+  ID 
+  & Location
+  & RadialDimensions
+  & { start: number
+    , duration: number }
+
+
 type State = 
   { player: Player
   , drones: Drone[]
   , drops: any[]
+  , shots: Shot[]
   , room: Room
   , level: number
   , ensemble: Ensemble
   }
 
 
+
+type ID = 
+  { objectID: number
+  , name: string}
+
+
 type UnitPosition = Bounds & 
   { objectID: number
     name: string
-    lastwalk?: boolean
   }
 
 
@@ -67,13 +81,15 @@ type Empty = null | undefined
 type SideFX = void
 
 
-type Player = UnitPosition & Stats & { name: string }
+type Player = 
+  UnitPosition 
+  & Stats 
+  & { name: string }
 
 
-type Drone = UnitPosition &
-  { shield: number
-    name: string
-  }
+type Drone = 
+  UnitPosition
+  & { lastwalk?: boolean }
 
 
 type Voice = 
@@ -108,16 +124,29 @@ type RGB =
   [number,number,number] | number[]
 
 
-interface Bounds  
+type Location = 
   { x: number
   , y: number
-  , width: number
+  , time?: number 
+  }
+
+
+type Dimensions = 
+  { width: number
   , height: number
-  , radius?: number 
   , dx?: Function
   , dy?: Function
-  , dr?: Function
-}
+  }
+
+
+type RadialDimensions = 
+  { radius?: number 
+  , dr?: Function 
+  }
+
+type Bounds =
+  Location
+  & Dimensions
 
 
 interface ControlListener
@@ -177,9 +206,8 @@ interface Modulate<T>
 
 
 interface UpdateListeners
-    { (state: State): Controls
-      prev?: Controls
-      listen?: (e: KeyboardEvent) => SideFX }
+    { (time: number, state: State)
+      prev?: (e: KeyboardEvent) => SideFX }
 
 
 interface QTInterface
@@ -333,8 +361,8 @@ const Presets =
             , drops: []
             , level: state.level + 1} ) }
 
-    , buff(state) {
-
+    , shot(state) {
+      log(`BANG~!#`)
       return state }
     }
 
@@ -353,7 +381,15 @@ const config = {
 }
 
 
-const tiny = (n, scale = 3) => n * pow(10,-(scale))
+
+const objectID = () => {
+ return objectID.prev++
+}
+objectID.prev = 0
+
+
+
+const downScale = (n, scale = 3) => n * pow(10,-(scale))
 
 
 const throttle = (seconds = 2) => 
@@ -379,7 +415,7 @@ const randomInt = (min = 0, max = 1) =>
 
 
 const log = (...any: any[]): SideFX => 
-  <void><unknown> any.map(a => console.log(a))
+  <void><unknown> console.log(any)
 
 
 const coinToss = (): boolean =>
@@ -390,7 +426,7 @@ const isNearWall = <U extends UnitPosition>(u: U, threshold = 0.1): boolean =>
   (u.x <= canvasWidth * threshold) && (u.y <= canvasHeight * threshold)
 
 
-const walk = <U extends UnitPosition>(u: U, step = 1 ): U => {
+const walk = (u: Drone, step = 1 ): Drone => {
   let direction = u.lastwalk ? 'x' : 'y'
   return (
     { ...u
@@ -416,27 +452,28 @@ const moveDown = <U extends UnitPosition>(u: U, amt=7): U  =>
   ({...u, y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight)})
 
 
-const fire = <U extends UnitPosition>(time, state: State): State => {
-  const { player, drops } = state
-  const origin = 
-    { x: player.x
-    , y: player.y
+
+const createShot = (opts = {}): Shot => {
+  return ( 
+    { objectID: objectID()
+    , name: 'shot'
+    , x: 0
+    , y: 0
+    , radius: 0
+    , dr: (time, shot) => {
+      const maxRadius = floor(canvasWidth/10)
+      const progress = (+new Date - shot.start)/(shot.duration)
+      log(`progress`,progress)
+      if (progress > 1) {
+        return 0
+      }
+
+      return floor(maxRadius * progress)
     }
-  return (
-    { ...state
-    , drops: drops.concat({type: 'attack', origin})
+    , start: (+new Date)
+    , duration: 2000
+    , ...opts
     })
-}
-
-
-const objectID = () => {
- //@ts-ignore property prev does not exist on object of type 
- if (typeof objectID.prev == 'undefined') 
- //@ts-ignore
-   objectID.prev = 0
-
- //@ts-ignore
- return objectID.prev++
 }
 
 
@@ -494,7 +531,7 @@ const createMusicDrop = (defaults = {}) => {
     , x: 0
     , y: 0
     , radius: elementRadius
-    , dr: (time, index = 1) => 1+ 40 * abs(sin((1+index)*tiny(time)))
+    , dr: (time, index = 1) => 1+ 40 * abs(sin((1+index)*downScale(time)))
     , width: 0
     , height: 0
     }, defaults )
@@ -509,14 +546,8 @@ const motionControls = () => (
   })
 
 
-const actionControls = () => (
-  { f: fire
-  })
-
-
 const applyMotion = (player, controlKey): Player => {
   let map = motionControls()
-  // @ts-ignore property includes does not exist on type string[]
   if (! (Object.keys(map).includes(controlKey)))
     return player
 
@@ -524,17 +555,30 @@ const applyMotion = (player, controlKey): Player => {
 }
 
 
-const applyActions = (state, controlKey): State => {
-  let map = actionControls()
-  // @ts-ignore property includes does not exist on type string[]
-  if (! (Object.keys(map).includes(controlKey)))
-    return state
+const applyControls = (time, state: State): State => {
+  let shots = state.shots
 
-  return map[controlKey](state)
+  if (game.controls.includes('f')) {
+    shots = shots.concat(createShot({start: (+new Date), x: state.player.x, y: state.player.y, duration: 200}))
+    game.controls = game.controls.filter(k => k!='f')
+  }
+
+  return (
+    {...state
+    , shots: shots.filter(shot => 1 !== (floor((+new Date) / (shot.start + shot.duration))))
+    , player: game.controls.reduce(applyMotion,state.player)})
 }
 
 
-const applyToTree = <U extends UnitPosition>(time, tree: QTInterface, u: U): QTInterface => {
+const applyMovement = (time, state: State): State => {
+  return (
+    {...state
+    , drones: state.drones.map(walk)
+    })
+}
+
+
+const applyToTree = (time, tree: QTInterface, u): QTInterface => {
   let {x, y, width, height, radius} = u
 
   width = (typeof u.dx == 'function')
@@ -547,11 +591,11 @@ const applyToTree = <U extends UnitPosition>(time, tree: QTInterface, u: U): QTI
 
   if (typeof radius == 'number') {
     radius = (typeof u.dr == 'function')
-      ? u.dr(time, radius)
+      ? u.dr(time, u)
       : radius + sqrt(Math.pow(width,2) + Math.pow(height,2))
+
     width = height = radius
   }
-
 
   tree.insert({...u, x, y, width, height})
   return tree
@@ -560,7 +604,8 @@ const applyToTree = <U extends UnitPosition>(time, tree: QTInterface, u: U): QTI
 
 /* Global handler for store state updates */
 const updateTreeIndices = <Tree>(time, state: State, tree: Tree): Tree => {
-  const next = ([state.player, ...state.drones, ...state.drops]).reduce(function add(tree, u) {
+
+  let  next = ([state.player, ...state.drones, ...state.drops, ...state.shots]).reduce(function add(tree, u) {
     return applyToTree(time, tree, u)}
     ,tree)
   return next
@@ -664,20 +709,12 @@ function game() {
       , [Role.soprano]: <SoundSource>{ volume: 1 }
       }
     , drones: []
+    , shots: []
     , drops: createOpeningMusicDrops()
     , room: <Room><unknown>{ clan: null, role: Role.bass }
     , level: 0
     }
   
-  const applyControls = (time, state: State): State => {
-    return (
-      {...state
-      , player: game.controls.reduce(applyMotion,state.player)
-      , drops: state.drops.reduce(applyActions,state.drops)
-      , drones: state.drones.map(walk)
-      })
-  }
-
 
   const playMusicEnsemble = (now: number, ensemble: Ensemble) => {
     Object.entries(ensemble).forEach(([role, part]) => {
@@ -739,6 +776,21 @@ function game() {
   }
 
 
+  const drawShots: StatefulDraw = (time, state): Draw => {
+    return (ctx) => {
+      state.shots.forEach((shot,i) => {
+        // ctx.fillStyle = toColor([(shot.x+shot.y)%100,shot.x%255,shot.y%200])
+        ctx.strokeStyle = 'magenta'
+        const radius = shot.dr(+new Date, shot)
+        ctx.arc(shot.x, shot.y, radius, 0, 2*PI)
+        // ctx.stroke()
+        ctx.fill()
+      })
+    }
+  }
+
+
+
   const drawDrops: StatefulDraw = (time, state): Draw => {
     const rgb = [0,0,0]
     return (ctx) => {
@@ -746,11 +798,10 @@ function game() {
       state.drops.forEach( ({x,y,width,height},i) => {
         for (let j =0; j < 3; j++) {
           rgb[i] = 255
-          const offset =  + tiny(time) + (PI*j/4)
-          const startAngle = 0 + offset
-          const endAngle = (Math.PI/4) + offset
+          const offset =  + downScale(time) + (PI*j/4)
+          const endpoint = (Math.PI/4) + offset
           ctx.fillStyle = toColor(rgb)
-          ctx.arc(x, y, 30, startAngle, endAngle);
+          ctx.arc(x, y, 30, offset, endpoint);
           ctx.stroke();
           ctx.fill();
         }
@@ -774,18 +825,27 @@ function game() {
   }
 
 
-  const drawTiles = (time, ctx): SideFX => {
+  const drawTiles = (time, ctx, state): SideFX => {
     let tw = 80
     let th = 80
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
 
+    let mods = 
+      [t => downScale(t,(state.level*2)+ 5) % 255
+      ,t => downScale(t, 51 + state.level) % 255
+      ,t => downScale(t, 91 - state.level) % 255
+      ,t => t + 223 % 20]
+
+    const get = (n,time) =>
+      mods[n % mods.length](time)
+
     for (let i=0;i<nx;i++) {
-      // let r = (i *tiny(time, 3)) % 255
-      let r = (time) % 255
+      // let r = (i *downScale(time, 3)) % 255
+      let r = get(i,time)
       for (let j=0;j<ny;j++) {
-        let g = (time+(time/j)) % 255
-        let b = (time+(time/i)) % 255
+        let g = get(j,time)
+        let b = get(i+j,time)
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
       }
@@ -800,10 +860,10 @@ function game() {
     let ny = canvasHeight / th
 
     for (let i=0;i<nx;i++) {
-      let r = (i *tiny(time, 1)) % 255
+      let r = (i *downScale(time, 1)) % 255
       for (let j=0;j<ny;j++) {
-        let g = (j *tiny(time, 2)) % 255
-        let b = (i+j *tiny(time, 4)) % 255
+        let g = (j *downScale(time, 2)) % 255
+        let b = (i+j *downScale(time, 4)) % 255
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
       }
@@ -818,10 +878,10 @@ function game() {
     let ny = canvasHeight / th
 
     for (let i=0;i<nx;i++) {
-      let r = (i *tiny(time, 1 +time%5)) % 255
+      let r = (i *downScale(time, 1 +time%5)) % 255
       for (let j=0;j<ny;j++) {
-        let g = (j *tiny(time, time%2)) % 255
-        let b = (i+j *tiny(time, time%4)) % 255
+        let g = (j *downScale(time, time%2)) % 255
+        let b = (i+j *downScale(time, time%4)) % 255
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
       }
@@ -836,10 +896,10 @@ function game() {
     let ny = canvasHeight / th
 
     for (let i=0;i<nx;i++) {
-      let r = (i *tiny(time, 1 +time%5)) % 255
+      let r = (i *downScale(time, 1 +time%5)) % 255
       for (let j=0;j<ny;j++) {
-        let g = (j *tiny(time, time%2)) % 255
-        let b = (i+j *tiny(time, time%4)) % 255
+        let g = (j *downScale(time, time%2)) % 255
+        let b = (i+j *downScale(time, time%4)) % 255
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
       }
@@ -865,7 +925,7 @@ function game() {
 
 
   const drawRoom: StatefulDraw = (time, state): Draw => {
-    // let selection = floor(tiny(time,3))%4
+    // let selection = floor(downScale(time,3))%4
     // let render = (
     //   [ drawTiles
     //   , drawTiles2
@@ -873,7 +933,7 @@ function game() {
     //   , drawTiles4
     //   ])[selection]
     return (ctx) => {
-      drawTiles(time, ctx)
+      drawTiles(time, ctx, state)
       ctx.strokeStyle = "black"
       ctx.strokeRect(0, 0, 600, 600)
     }
@@ -887,7 +947,6 @@ function game() {
   }
 
   const addControlKey: ControlListener = (key) => {
-    // @ts-ignore TS2339
     return controls.includes(key) ? controls : controls.concat(key)
   }
 
@@ -895,11 +954,17 @@ function game() {
     controls.filter(k => k !== key)
 
 
-  const handleKeydown = (e: KeyboardEvent): SideFX => {  
-    if (e.repeat === true)
+  const handleKeydown = (e: KeyboardEvent, time, state): SideFX => {  
+    if (e.repeat === true) {
       return
+    }
 
-    game.controls = game.controls.concat(e.key)
+    if (e.key == 'f' && game.controls.includes(e.key)) {
+      game.controls = game.controls.filter(k => k !== e.key)
+    } else {
+      game.controls = game.controls.concat(e.key)
+    }
+
     const remove = () => {
       game.controls = game.controls.filter(k => k !== e.key)
     }
@@ -910,7 +975,6 @@ function game() {
         window.removeEventListener('keyup', cleanup)
       }
     }
-
     window.addEventListener('keyup', cleanup)
   }
 
@@ -943,6 +1007,7 @@ function game() {
   const swarmScene = (time, state, illustrate) => {
     illustrate( drawRoom(time, state) )
     illustrate( drawNPCS(time, state) )
+    illustrate( drawShots(time, state))
     illustrate( drawPlayer(time, state) )
   }
 
@@ -954,14 +1019,15 @@ function game() {
   }
 
 
-  const updateListeners: UpdateListeners = (state) => {
-    if (typeof updateListeners.listen == 'function')
-      window.removeEventListener('keydown', updateListeners.listen)
+  const updateListeners: UpdateListeners = (time, state) => {
+    const listener = (e) => handleKeydown(e, time, state)
+    if (typeof updateListeners.prev == 'function') 
+      window.removeEventListener('keydown', updateListeners.prev)
 
-    updateListeners.listen = (e) => handleKeydown(e)
-    window.addEventListener('keydown', updateListeners.listen)
-    return updateListeners.prev || []
+    window.addEventListener('keydown', updateListeners.prev = listener)
+    return state
   }
+
 
   const handleTouches = (state, touches): State => {
     if (touches.length == 0)
@@ -1009,6 +1075,7 @@ function game() {
     tree.clear()
 
     let next = applyControls(time, prev)
+    next = applyMovement(time, next)
     updateTreeIndices(time, next, tree)
     updateSound(next, audioContext)
 
@@ -1017,9 +1084,8 @@ function game() {
       next = handleTouches(next, collisions)
     }
 
-    if (Object.values(next.ensemble).some(part => part.volume <= 0)) {
-      log(`you got killdead`)
-      throw 'done'
+    if (Object.values(next.ensemble).some(part => part.volume == 0)) {
+      location.reload()
     }
 
     if (prev.level != next.level) {
@@ -1029,7 +1095,7 @@ function game() {
       next = setupDrops(next)
     } 
 
-    updateListeners(next)
+    updateListeners(time, next)
     drawStage(time, next, draw)
     requestAnimationFrame((ntime) => loop(ntime, next, draw, tree))
   }
@@ -1062,7 +1128,7 @@ function game() {
     const offsetCeiling = canvasHeight/3
     const elWidth = containerWidth/clans.length
     
-    illustrate((ctx) => drawTiles(time, ctx))
+    illustrate((ctx) => drawTiles(time, ctx, state))
 
     state.drops.forEach((unit, i) => {
       illustrate((ctx) => {
