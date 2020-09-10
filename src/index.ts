@@ -306,6 +306,17 @@ const Presets =
         }
       }
     }
+  
+
+  const mods = 
+    [(t,state) => floor(downScale(t,(state.level*2)+ 5) % 255)
+    ,(t,state) => floor(downScale(t, 51 + state.level) % 255)
+    ,(t,state) => floor(downScale(t, 91 - state.level) % 255)
+    ,(t,state) => floor(t + 223 % 20)])
+
+
+  const useMod = (n,time,state) =>
+    mods[n % mods.length](time,state)
 
 
   const applyDroneDamage = (role, ensemble): Ensemble => {
@@ -362,7 +373,6 @@ const Presets =
             , level: state.level + 1} ) }
 
     , shot(state) {
-      log(`BANG~!#`)
       return state }
     }
 
@@ -463,7 +473,6 @@ const createShot = (opts = {}): Shot => {
     , dr: (time, shot) => {
       const maxRadius = floor(canvasWidth/10)
       const progress = (+new Date - shot.start)/(shot.duration)
-      log(`progress`,progress)
       if (progress > 1) {
         return 0
       }
@@ -779,12 +788,12 @@ function game() {
   const drawShots: StatefulDraw = (time, state): Draw => {
     return (ctx) => {
       state.shots.forEach((shot,i) => {
-        // ctx.fillStyle = toColor([(shot.x+shot.y)%100,shot.x%255,shot.y%200])
-        ctx.strokeStyle = 'magenta'
+        ctx.strokeStyle = toColor([(shot.x+shot.y)%100,shot.x%255,shot.y%200])
         const radius = shot.dr(+new Date, shot)
         ctx.arc(shot.x, shot.y, radius, 0, 2*PI)
-        // ctx.stroke()
-        ctx.fill()
+        ctx.lineWidth = (time % 20)
+        ctx.stroke()
+        // ctx.fill()
       })
     }
   }
@@ -818,7 +827,6 @@ function game() {
     return (ctx) => {
       ctx.fillStyle = mainColor
       ctx.strokeStyle = accent
-      ctx.lineWidth = 8;
       ctx.strokeText(text, state.player.x, state.player.y);
       ctx.fillText(text, state.player.x, state.player.y);
     }
@@ -831,21 +839,12 @@ function game() {
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
 
-    let mods = 
-      [t => downScale(t,(state.level*2)+ 5) % 255
-      ,t => downScale(t, 51 + state.level) % 255
-      ,t => downScale(t, 91 - state.level) % 255
-      ,t => t + 223 % 20]
-
-    const get = (n,time) =>
-      mods[n % mods.length](time)
-
     for (let i=0;i<nx;i++) {
       // let r = (i *downScale(time, 3)) % 255
-      let r = get(i,time)
+      let r = useMod(i,time,state)
       for (let j=0;j<ny;j++) {
-        let g = get(j,time)
-        let b = get(i+j,time)
+        let g = useMod(j,time,state)
+        let b = useMod(i+j,time,state)
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
       }
@@ -993,6 +992,7 @@ function game() {
 
     if (state.level == 0) {
       openingScene(time, state, illustrate)
+      illustrate( drawShots( time, state) )
       return
     }
 
@@ -1112,6 +1112,7 @@ function game() {
     
     const scene: Illustrate = (draw: Draw): SideFX  => {
       ctx.beginPath()
+      ctx.lineWidth = 8
       draw(ctx)
       ctx.closePath()
     }
