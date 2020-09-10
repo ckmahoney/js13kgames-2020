@@ -312,11 +312,24 @@ const Presets =
     [(t,state) => floor(downScale(t,(state.level*2)+ 5) % 255)
     ,(t,state) => floor(downScale(t, 51 + state.level) % 255)
     ,(t,state) => floor(downScale(t, 91 - state.level) % 255)
-    ,(t,state) => floor(t + 223 % 20)])
+    ,(t,state) => floor(t + 223 % 20)]
 
 
   const useMod = (n,time,state) =>
     mods[n % mods.length](time,state)
+
+
+  const collides = (unit, obj): Boolean => {
+    if (unit.objectID == obj.objectID) 
+      return false
+
+    return !(
+      unit.x > obj.x + obj.width ||
+      unit.x + obj.width < obj.x ||
+      unit.y > obj.y + obj.height ||
+      unit.y + obj.height < obj.y
+    );
+  }
 
 
   const applyDroneDamage = (role, ensemble): Ensemble => {
@@ -373,6 +386,7 @@ const Presets =
             , level: state.level + 1} ) }
 
     , shot(state) {
+      
       return state }
     }
 
@@ -621,7 +635,7 @@ const updateTreeIndices = <Tree>(time, state: State, tree: Tree): Tree => {
 }
 
 
-const handleCollisions = (state, tree): any[] => {
+const applyCollisions = (state, tree): any[] => {
   const {player} = state
   const intersections = tree.retrieve({
     x: player.x,
@@ -630,19 +644,7 @@ const handleCollisions = (state, tree): any[] => {
     height: player.height
   });
 
-  const collides = (unit) => {
-    if (unit.name == 'player' ) 
-      return false
-
-    return !(
-      unit.x > player.x + player.width ||
-      unit.x + unit.width < player.x ||
-      unit.y > player.y + player.height ||
-      unit.y + unit.height < player.y
-    );
-  }
-
-  return intersections.filter(collides)
+  return intersections.filter(collides, state.player)
 }
 
 
@@ -1029,11 +1031,14 @@ function game() {
   }
 
 
-  const handleTouches = (state, touches): State => {
+  const updateCollisions = (state, touches, type = ''): State => {
     if (touches.length == 0)
       return state
 
-    const action = touchHandlers[touches[0].name]
+    if (type === '') 
+      type = touches[0].name 
+
+    const action = touchHandlers[type]
     return action(state,touches);
   }
 
@@ -1079,9 +1084,9 @@ function game() {
     updateTreeIndices(time, next, tree)
     updateSound(next, audioContext)
 
-    const collisions = handleCollisions(next, tree)
+    const collisions = applyCollisions(next, tree)
     if (collisions.length > 0) {
-      next = handleTouches(next, collisions)
+      next = updateCollisions(next, collisions)
     }
 
     if (Object.values(next.ensemble).some(part => part.volume == 0)) {
