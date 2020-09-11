@@ -1,6 +1,6 @@
 import {Quadtree} from './store'
 import {Sequence, Synth, partLead, partHarmony, partBass, intervalsToMelody, ac as audioContext, getBeatLength, getBeatIndex} from './Sequencer'
-const { abs, sin, cos, pow, sqrt, floor, ceil, random, PI } = Math
+const { abs, sin, cos, pow, sqrt, floor, ceil, random, PI, max, min } = Math
 
 
 enum Role 
@@ -262,7 +262,7 @@ const roleAttributes =
 
 const Presets = 
   { [Clan.Yellow]: 
-    { tonic: 80
+    { tonic: 88
     , bpm: 70
     , voices:
       { [Role.bass]: [0, 5, 0, 7]
@@ -272,17 +272,17 @@ const Presets =
       }
     }
   , [Clan.Red]: 
-    { tonic: 160
+    { tonic: 52
     , bpm: 93.333
     , voices: 
       { [Role.bass]: [7, 0]
       , [Role.tenor]: [4, 4, 2, 4]
-      , [Role.alto]: [NaN, 7, 4, 7]
+      , [Role.alto]: [7, 4, 7, NaN]
       , [Role.soprano]: [12, NaN, NaN, 0]
       }
     }
   , [Clan.Blue]:
-    { tonic: 320
+    { tonic: 128
     , bpm: 124.44/2
     , voices: 
       { [Role.bass]: [12, 0, NaN, 0]
@@ -376,7 +376,9 @@ const Presets =
         const room = 
           { clan: element.clan
           , role: (state.level == 0) ? Role.bass : element.role }
+        log(`adding room to ensemble:`, room,state.ensemble)
         const ensemble = addToEnsemble(state.ensemble, room.clan, room.role)
+        log(`created ensemble`, ensemble)
 
         return (
           { ...state
@@ -384,10 +386,6 @@ const Presets =
             , room
             , drops: []
             , level: state.level + 1} ) }
-
-    , shot(state) {
-      
-      return state }
     }
 
 
@@ -397,7 +395,7 @@ const playerHeight = 80
 const playerWidth = 80
 const droneWidth = 50
 const droneHeight = 50
-const elementRadius = 30
+const elementRadius = min(100, canvasWidth/6)
 
 const config = {
   canvasWidth,
@@ -484,8 +482,8 @@ const createShot = (opts = {}): Shot => {
     , x: 0
     , y: 0
     , radius: 0
-    , dr: (time, shot) => {
-      const maxRadius = floor(canvasWidth/10)
+    , dr: (time, shot, index) => {
+      const maxRadius = floor(canvasWidth/3)
       const progress = (+new Date - shot.start)/(shot.duration)
       if (progress > 1) {
         return 0
@@ -533,31 +531,31 @@ const createOpeningMusicDrops = (qty = 3) => {
   const drops = []
   const containerWidth = canvasWidth*2/qty
   const offsetWall = canvasWidth/qty
-  const offsetCeiling = canvasHeight/qty
+  const offsetCeiling = (canvasHeight+elementRadius)/2
   const elWidth = containerWidth/qty
 
   for (let i = 0; i < 3; i++) {
     const x = offsetWall + (i*elWidth)
     const y = offsetCeiling 
-    const radius = 1+ 40 * abs(sin((1+i)))
-    drops.push(createMusicDrop({x, y, radius, role: Role.bass, clan: Clan[Clan[i]]}))
+    drops.push(createMusicDrop({x, y, role: Role.bass, clan: Clan[Clan[i]]}))
   }
   return drops
 }
 
 
-const createMusicDrop = (defaults = {}) => {
-  return Object.assign(
-    { objectID: objectID()
-    , name: 'element'
-    , clan: ''
+const createMusicDrop = (opts = {}) => {
+  return (
+    { clan: ''
     , x: 0
     , y: 0
     , radius: elementRadius
-    , dr: (time, index = 1) => 1+ 40 * abs(sin((1+index)*downScale(time)))
+    , dr: (time, element) => floor(elementRadius * abs(sin((element.objectID)+downScale(time))))
     , width: 0
     , height: 0
-    }, defaults )
+    , ...opts // do not allow name or objectID to be initialized
+    , name: 'element'
+    , objectID: objectID()
+    })
 }
 
 
@@ -596,10 +594,11 @@ const applyControls = (time, state: State): State => {
 const applyMovement = (time, state: State): State => {
   return (
     {...state
+    , shots: state.shots.map((shot) => ({...shot, radius: shot.dr(+new Date, shot)}))
+    , drops: state.drops.map((drop) => ({...drop, radius: drop.dr(time, drop)}))
     , drones: state.drones.map(walk)
     })
 }
-
 
 const applyToTree = (time, tree: QTInterface, u): QTInterface => {
   let {x, y, width, height, radius} = u
@@ -613,10 +612,12 @@ const applyToTree = (time, tree: QTInterface, u): QTInterface => {
     : u.y + height;
 
   if (typeof radius == 'number') {
+    const scale = 0.8 // since it creates a rect bound box, reduce hit region area
     radius = (typeof u.dr == 'function')
       ? u.dr(time, u)
-      : radius + sqrt(Math.pow(width,2) + Math.pow(height,2))
-
+      : radius
+    if(u.name== 'element') {
+    }
     width = height = radius
   }
 
@@ -635,16 +636,39 @@ const updateTreeIndices = <Tree>(time, state: State, tree: Tree): Tree => {
 }
 
 
-const applyCollisions = (state, tree): any[] => {
-  const {player} = state
-  const intersections = tree.retrieve({
-    x: player.x,
-    y: player.y,
-    width: player.width,
-    height: player.height
-  });
+const handlePlayerCollisions = (state, tree): any[] => {
+  const droneHits = state.drones.reduce((collisions, drone) => {
+    const intersections = tree.retrieve(drone).filter((unit) => collides(unit, drone))
+    return collisions.concat(intersections)
+  }, [])
 
-  return intersections.filter(collides, state.player)
+
+  const playerHits = tree.retrieve(state.player).filter((u) => collides(u, state.player))
+  return [...playerHits, ...droneHits]
+}
+
+
+const applyShotCollisions = (state, tree): State => {
+  // const droneHits = state.drones.reduce((collisions, drone) => {
+  //   const intersections = tree.retrieve(drone).filter((unit) => collides(unit, drone))
+  //   return collisions.concat(intersections)
+  // }, [])
+
+
+  const drones = state.shots.reduce(function shootAtDrones(remainingDrones,shot) {
+    const collisions = tree.retrieve(shot).filter((unit) => 
+      (collides(unit, shot))).filter(unit => unit.name != 'player')
+    
+    const defenderIDs = collisions.map(d => d.objectID)
+    return remainingDrones.filter(drone => 
+      !defenderIDs.includes(drone.objectID))
+  }, state.drones)
+
+  if (drones.length != state.drones.length) {
+    log(`it hit some. these are left`, drones)
+  }
+
+  return {...state, drones}
 }
 
 
@@ -666,10 +690,10 @@ const addToEnsemble = (ensemble: Ensemble, clan: Clan, key: Role, amt = 2): Ense
 
 function getSynth(role: Role): Synth {
   const roles = 
-    { 'bass': partBass
-    , 'tenor': partHarmony
-    , 'alto': partLead
-    , 'sorpano': partHarmony
+    { [Role.bass]: partBass
+    , [Role.tenor]: partHarmony
+    , [Role.alto]: partLead
+    , [Role.soprano]: partHarmony
     }
     return (roles[role] || partHarmony)
 }
@@ -701,10 +725,10 @@ const sostenuto = x =>
 
 const getDuration = (role: Role) => {
   const roles = 
-    { 'bass': choppy
-    , 'tenor': tenuto
-    , 'alto': shortening
-    , 'sorpano': sostenuto
+    { [Role.bass]: choppy
+    , [Role.tenor]: tenuto
+    , [Role.alto]: shortening
+    , [Role.soprano]: sostenuto
     }
     return (roles[role] || tenuto)
 }
@@ -725,41 +749,45 @@ function game() {
     , room: <Room><unknown>{ clan: null, role: Role.bass }
     , level: 0
     }
+
+
+
+  const play = (now, role: Role, part) => {
+    if (part.volume == 1) {
+      if (typeof part.sequencer != 'undefined') {
+        part.sequencer.stop()
+        delete part.sequencer
+      }
+      return
+    }
+
+    const synth = getSynth(role)
+    const beat = getBeatIndex(now, part.bpm, part.melody)
+
+    // start the first one
+    if (typeof part.sequencer == 'undefined') {
+      const notes = intervalsToMelody(part.tonic, getDuration(role), beatmatch(beat, part.melody))
+      const play = synth(now, part.bpm, notes)
+      part.sequencer = play()
+      part.sequencer.osc.onended = (): SideFX => {
+        delete part.sequencer
+      }
+      return
+    }
+
+    // set up the next loop
+    if ((typeof part?.sequencer?.osc.onended == 'undefined') && beat == (part.melody.length - 1)) {
+      const beatWidth = getBeatLength(part.bpm)
+      const notes = intervalsToMelody(part.tonic, getDuration(role), part.melody)
+      part.sequencer.osc.onended = (): SideFX => {
+        delete part.sequencer
+      }
+    }
+  }
   
 
   const playMusicEnsemble = (now: number, ensemble: Ensemble) => {
-    Object.entries(ensemble).forEach(([role, part]) => {
-      if (part.volume == 1) {
-        if (typeof part.sequencer != 'undefined') {
-          part.sequencer.stop()
-          delete part.sequencer
-        }
-        return
-      }
-
-      const synth = getSynth(role)
-      const beat = getBeatIndex(now, part.bpm, part.melody)
-
-      // start the first one
-      if (typeof part.sequencer == 'undefined') {
-        const notes = intervalsToMelody(part.tonic, getDuration(role), beatmatch(beat, part.melody))
-        const play = synth(now, part.bpm, notes)
-        part.sequencer = play()
-        part.sequencer.osc.onended = (): SideFX => {
-          delete part.sequencer
-        }
-        return
-      }
-
-      // set up the next loop
-      if ((typeof part?.sequencer?.osc.onended == 'undefined') && beat == (part.melody.length - 1)) {
-        const beatWidth = getBeatLength(part.bpm)
-        const notes = intervalsToMelody(part.tonic, getDuration(role), part.melody)
-        part.sequencer.osc.onended = (): SideFX => {
-          delete part.sequencer
-        }
-      }
-    })
+    Object.entries(ensemble).forEach(([key, part]) => play(now, parseInt(key), part))
   }
 
 
@@ -791,15 +819,12 @@ function game() {
     return (ctx) => {
       state.shots.forEach((shot,i) => {
         ctx.strokeStyle = toColor([(shot.x+shot.y)%100,shot.x%255,shot.y%200])
-        const radius = shot.dr(+new Date, shot)
-        ctx.arc(shot.x, shot.y, radius, 0, 2*PI)
+        ctx.arc(shot.x, shot.y, shot.radius, 0, 2*PI)
         ctx.lineWidth = (time % 20)
         ctx.stroke()
-        // ctx.fill()
       })
     }
   }
-
 
 
   const drawDrops: StatefulDraw = (time, state): Draw => {
@@ -935,8 +960,6 @@ function game() {
     //   ])[selection]
     return (ctx) => {
       drawTiles(time, ctx, state)
-      ctx.strokeStyle = "black"
-      ctx.strokeRect(0, 0, 600, 600)
     }
   }
 
@@ -1031,16 +1054,19 @@ function game() {
   }
 
 
-  const updateCollisions = (state, touches, type = ''): State => {
-    if (touches.length == 0)
-      return state
-
+  const applyPlayerCollisions = (state, touches, type = ''): State => {
     if (type === '') 
       type = touches[0].name 
 
     const action = touchHandlers[type]
+    if (typeof action == 'undefined') {
+      // TODO applyPlayerCollisions sould be explicitly called with known arguments
+      return state
+    }
+
     return action(state,touches);
   }
+ 
 
 
   const enumKeys = (e) =>
@@ -1084,18 +1110,25 @@ function game() {
     updateTreeIndices(time, next, tree)
     updateSound(next, audioContext)
 
-    const collisions = applyCollisions(next, tree)
+    let collisions = handlePlayerCollisions(next, tree)
     if (collisions.length > 0) {
-      next = updateCollisions(next, collisions)
+      next = applyPlayerCollisions(next, collisions)
+    }
+
+    if (next.shots.length > 0) {
+      next = applyShotCollisions(next, tree)
     }
 
     if (Object.values(next.ensemble).some(part => part.volume == 0)) {
+      debugger;
+
       location.reload()
     }
 
     if (prev.level != next.level) {
       next = setupNextLevel(next)
-    } else if (next.drones.length == 0 && next.drops.length == 0 ) {
+    } else if (next.drones.length == 0 && next.drops.length == 0) {
+      log(`setting up the level`)
       // The room is clear, provide the drops
       next = setupDrops(next)
     } 
@@ -1142,13 +1175,8 @@ function game() {
         const rAttrs =roleAttributes[i]
         const x = offsetWall + (i*elWidth)
         const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
-        const radius = unit.dr(time,i)
-        // apply these here so they are stored for next tree insertion
-        unit.width = radius
-        unit.height = radius
-
         ctx.fillStyle = ctx.strokeStyle =  toColor(attrs.rgb,rAttrs[i])
-        ctx.arc(x, y, radius, 0, 2 * Math.PI)
+        ctx.arc(x, y, unit.radius, 0, 2 * Math.PI)
         ctx.fill()
         ctx.stroke()
       })
