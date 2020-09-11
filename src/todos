@@ -1,21 +1,23 @@
-[] Create a room generator
+[x] Create a room generator
   [x] floor tiles
   [x] with drones
   [x] with doors
+
 [x] Create the opening room selection ( Red, Yellow, or Blue bassline )
-[] Controls
+
+[x] Controls
 	[x] Add player movement controls
 	[x] Add drone movement
-	[] Implement touch attacks
+	[x] Implement touch attacks
+  [x] Implement radius attacks
 
-
-[] Play complete soundtrack
-  [] of same clan
-  [] of mixed clans
-  [] of mixed volumes
+[x] Play complete soundtrack
+  [x] of same clan
+  [x] of mixed clans
+  [x] of mixed volumes
 
 
 [] Create pickups
-  [] musical element
+  [x] musical element
   [] player buff
 

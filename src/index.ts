@@ -364,7 +364,6 @@ const Presets =
         const drones = state.drones.filter(drone => 
           !defenderIDs.includes(drone.objectID))
 
-        log(`kilkled drones`, state.drones.filter(d=>!drones.includes(d)))
 
         return {...state, drones, ensemble} }
 
@@ -378,9 +377,7 @@ const Presets =
         const room = 
           { clan: element.clan
           , role: (state.level == 0) ? Role.bass : element.role }
-        log(`adding room to ensemble:`, room,state.ensemble)
         const ensemble = addToEnsemble(state.ensemble, room.clan, room.role)
-        log(`created ensemble`, ensemble)
 
         return (
           { ...state
@@ -474,7 +471,6 @@ const moveUp = <U extends UnitPosition>(u: U, amt=7): U  =>
 
 const moveDown = <U extends UnitPosition>(u: U, amt=7): U  => 
   ({...u, y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight)})
-
 
 
 const createShot = (opts = {}): Shot => {
@@ -578,8 +574,9 @@ const applyMotion = (player, controlKey): Player => {
 }
 
 
+/* Respond to the keydown controls */
 const applyControls = (time, state: State): State => {
-  const renderOffset = 15
+  const renderOffset = 0
   let shots = state.shots
 
   if (game.controls.includes('f')) {
@@ -587,17 +584,27 @@ const applyControls = (time, state: State): State => {
     game.controls = game.controls.filter(k => k!='f')
   }
 
+  const isInProgress = (shot) =>
+    1 !== (floor((+new Date) / (shot.start + (shot.duration + renderOffset))))
+
   return (
     {...state
-    , shots: shots.filter(shot => 1 !== (floor((+new Date) / (shot.start + (shot.duration + renderOffset)))))
+    , shots: shots.filter(isInProgress)
     , player: game.controls.reduce(applyMotion,state.player)})
 }
 
 
-const applyMovement = (time, state: State): State => {
+const updateRadial = (unit, time) => {
+  const radius = unit.dr(time, unit)
+  return {...unit, radius, width: radius/2, height: radius/2}
+}
+
+
+/* Update the x,y,width,height,radius properties of units in state. */
+const applyPositions = (time, state: State): State => {
   return {...state
-    , shots: state.shots.map((shot) => ({...shot, radius: shot.dr(+new Date, shot), width: shot.dr(+new Date, shot), height: shot.dr(+new Date, shot)}))
-    , drops: state.drops.map((drop) => ({...drop, radius: drop.dr(time, drop), width: drop.dr(time, drop), height:  drop.dr(time, drop)}))
+    , shots: state.shots.map((u) => updateRadial(u, +new Date))
+    , drops: state.drops.map((u) => updateRadial(u, time))
     , drones: state.drones.map(walk)
     }
 }
@@ -632,10 +639,7 @@ const handlePlayerCollisions = (state, tree): any[] => {
 const applyShotCollisions = (state, tree): State => {
 
   const allTouches = state.shots.map(shot => tree.retrieve(shot))
-  log(`state.shots`,state.shots)
-  log(`state.shots`,allTouches)
   const touches = allTouches.reduce((a, x) => [...a,...x], [])
-  log(`has all touches from shots`, touches)
   const defenderIDs = touches.map(drone => drone.objectID)
 
   // destroy on contact
@@ -650,12 +654,6 @@ const applyShotCollisions = (state, tree): State => {
   //   return remainingDrones.filter(drone => 
   //     !defenderIDs.includes(drone.objectID))
   // }, state.drones)
-
-  if (drones.length != state.drones.length) {
-    log(`it hit some. these are left`, drones)
-  }
-
-  log(`returning a new state: `, {...state, drones})
 
   return {...state, drones}
 }
@@ -804,7 +802,7 @@ function game() {
         const metrics = ctx.measureText(text)
         drone.width = metrics.width
         ctx.fillStyle = toColor(cAttrs.rgb, rAttrs.colorMod)
-        ctx.fillText(text, x+droneWidth, y+droneHeight)  
+        ctx.fillText(text, floor(x+droneWidth), floor(y+droneHeight))  
       } )
     }
   }
@@ -847,6 +845,10 @@ function game() {
     const text = '!*!' || '?*?'
 
     return (ctx) => {
+      const metrics = ctx.measureText(text)
+      state.player.height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+      state.player.width = metrics.width
+      // Must apply width and height using the ctx
       ctx.fillStyle = mainColor
       ctx.strokeStyle = accent
       ctx.strokeText(text, state.player.x, state.player.y);
@@ -1101,11 +1103,11 @@ function game() {
     tree.clear()
 
     let next = applyControls(time, prev)
-    next = applyMovement(time, next)
+    next = applyPositions(time, next)
     tree = updateTreeIndices(time, next, tree)
     updateSound(next, audioContext)
-
     let collisions = handlePlayerCollisions(next, tree)
+
     if (collisions.length > 0) {
       next = applyPlayerCollisions(next, collisions)
     }
@@ -1130,7 +1132,6 @@ function game() {
     if (prev.level != next.level) {
       next = setupNextLevel(next)
     } else if (next.drones.length == 0 && next.drops.length == 0) {
-      log(`setting up the level`)
       // The room is clear, provide the drops
       next = setupDrops(next)
     } 
@@ -1175,10 +1176,8 @@ function game() {
       illustrate((ctx) => {
         const attrs =clanAttributes[i]
         const rAttrs =roleAttributes[i]
-        const x = offsetWall + (i*elWidth)
-        const y = offsetCeiling // * ((Math.cos(time * (i*0.25)/100)))
         ctx.fillStyle = ctx.strokeStyle =  toColor(attrs.rgb,rAttrs[i])
-        ctx.arc(x, y, unit.radius, 0, 2 * Math.PI)
+        ctx.arc(unit.x, unit.y, unit.radius, 0, 2 * Math.PI)
         ctx.fill()
         ctx.stroke()
       })
