@@ -364,7 +364,9 @@ const Presets =
         const drones = state.drones.filter(drone => 
           !defenderIDs.includes(drone.objectID))
 
-        return {...state, drones} }
+        log(`kilkled drones`, state.drones.filter(d=>!drones.includes(d)))
+
+        return {...state, drones, ensemble} }
 
     , element(state: State, touches) {
         if (state.level == 0 && touches.length > 1) {
@@ -577,6 +579,7 @@ const applyMotion = (player, controlKey): Player => {
 
 
 const applyControls = (time, state: State): State => {
+  const renderOffset = 15
   let shots = state.shots
 
   if (game.controls.includes('f')) {
@@ -586,55 +589,33 @@ const applyControls = (time, state: State): State => {
 
   return (
     {...state
-    , shots: shots.filter(shot => 1 !== (floor((+new Date) / (shot.start + shot.duration))))
+    , shots: shots.filter(shot => 1 !== (floor((+new Date) / (shot.start + (shot.duration + renderOffset)))))
     , player: game.controls.reduce(applyMotion,state.player)})
 }
 
 
 const applyMovement = (time, state: State): State => {
-  return (
-    {...state
-    , shots: state.shots.map((shot) => ({...shot, radius: shot.dr(+new Date, shot)}))
-    , drops: state.drops.map((drop) => ({...drop, radius: drop.dr(time, drop)}))
+  return {...state
+    , shots: state.shots.map((shot) => ({...shot, radius: shot.dr(+new Date, shot), width: shot.dr(+new Date, shot), height: shot.dr(+new Date, shot)}))
+    , drops: state.drops.map((drop) => ({...drop, radius: drop.dr(time, drop), width: drop.dr(time, drop), height:  drop.dr(time, drop)}))
     , drones: state.drones.map(walk)
-    })
+    }
 }
 
-const applyToTree = (time, tree: QTInterface, u): QTInterface => {
-  let {x, y, width, height, radius} = u
-
-  width = (typeof u.dx == 'function')
-    ? u.dx(time, u.x)
-    : u.x + width;
-
-  height = (typeof u.dy == 'function')
-    ? u.dy(time, u.y)
-    : u.y + height;
-
-  if (typeof radius == 'number') {
-    const scale = 0.8 // since it creates a rect bound box, reduce hit region area
-    radius = (typeof u.dr == 'function')
-      ? u.dr(time, u)
-      : radius
-    if(u.name== 'element') {
-    }
-    width = height = radius
-  }
-
-  tree.insert({...u, x, y, width, height})
+const applyToTree = (tree: QTInterface, u): QTInterface => {
+  tree.insert(u)
   return tree
 }
 
 
 /* Global handler for store state updates */
 const updateTreeIndices = <Tree>(time, state: State, tree: Tree): Tree => {
-
-  let  next = ([state.player, ...state.drones, ...state.drops, ...state.shots]).reduce(function add(tree, u) {
-    return applyToTree(time, tree, u)}
-    ,tree)
-  return next
+  return (
+    [ state.player
+    , ...state.drones
+    , ...state.drops
+    , ...state.shots]).reduce(applyToTree, tree)
 }
-
 
 const handlePlayerCollisions = (state, tree): any[] => {
   const droneHits = state.drones.reduce((collisions, drone) => {
@@ -649,24 +630,32 @@ const handlePlayerCollisions = (state, tree): any[] => {
 
 
 const applyShotCollisions = (state, tree): State => {
-  // const droneHits = state.drones.reduce((collisions, drone) => {
-  //   const intersections = tree.retrieve(drone).filter((unit) => collides(unit, drone))
-  //   return collisions.concat(intersections)
-  // }, [])
 
+  const allTouches = state.shots.map(shot => tree.retrieve(shot))
+  log(`state.shots`,state.shots)
+  log(`state.shots`,allTouches)
+  const touches = allTouches.reduce((a, x) => [...a,...x], [])
+  log(`has all touches from shots`, touches)
+  const defenderIDs = touches.map(drone => drone.objectID)
 
-  const drones = state.shots.reduce(function shootAtDrones(remainingDrones,shot) {
-    const collisions = tree.retrieve(shot).filter((unit) => 
-      (collides(unit, shot))).filter(unit => unit.name != 'player')
+  // destroy on contact
+  const drones = state.drones.filter(drone => 
+    !defenderIDs.includes(drone.objectID))
+
+  // const drones = state.shots.reduce(function shootAtDrones(remainingDrones,shot) {
+  //   const collisions = tree.retrieve(shot).filter((unit) => 
+  //     (collides(unit, shot))).filter(unit => unit.name != 'player')
     
-    const defenderIDs = collisions.map(d => d.objectID)
-    return remainingDrones.filter(drone => 
-      !defenderIDs.includes(drone.objectID))
-  }, state.drones)
+  //   const defenderIDs = collisions.map(d => d.objectID)
+  //   return remainingDrones.filter(drone => 
+  //     !defenderIDs.includes(drone.objectID))
+  // }, state.drones)
 
   if (drones.length != state.drones.length) {
     log(`it hit some. these are left`, drones)
   }
+
+  log(`returning a new state: `, {...state, drones})
 
   return {...state, drones}
 }
@@ -806,10 +795,16 @@ function game() {
   const drawNPCS: StatefulDraw = (time, state): Draw => {
     const cAttrs = clanAttributes[state.room.clan]
     const rAttrs = roleAttributes[state.room.role]
+    // use measuretext here because it depends on the ctx
+    // it is a sidefx that should go in applyMotion instead
     return (ctx) => {
-      state.drones.forEach( ({x,y},i) => {
+      state.drones.forEach( (drone,i) => {
+        const {x,y} = drone
+        const text = rAttrs.text.repeat(2)
+        const metrics = ctx.measureText(text)
+        drone.width = metrics.width
         ctx.fillStyle = toColor(cAttrs.rgb, rAttrs.colorMod)
-        ctx.fillText(rAttrs.text.repeat(2), x+droneWidth, y+droneHeight)  
+        ctx.fillText(text, x+droneWidth, y+droneHeight)  
       } )
     }
   }
@@ -1107,7 +1102,7 @@ function game() {
 
     let next = applyControls(time, prev)
     next = applyMovement(time, next)
-    updateTreeIndices(time, next, tree)
+    tree = updateTreeIndices(time, next, tree)
     updateSound(next, audioContext)
 
     let collisions = handlePlayerCollisions(next, tree)
@@ -1115,15 +1110,22 @@ function game() {
       next = applyPlayerCollisions(next, collisions)
     }
 
-    if (next.shots.length > 0) {
-      next = applyShotCollisions(next, tree)
+    if (next.shots.length > 0 && next.drones.length > 0) {
+      // shoot at the drones, remove the hits
+      let drones = next.shots.reduce((drones, shot,i) => {
+        const collisions = tree.retrieve(shot).filter((unit) => collides(unit, shot))
+        return drones.filter(drone => !collisions.includes(drone))
+      }, next.drones)
+
+      // next = applyShotCollisions(next, tree)
+      next = {...next, drones};
     }
 
+    // you died
     if (Object.values(next.ensemble).some(part => part.volume == 0)) {
-      debugger;
-
       location.reload()
     }
+
 
     if (prev.level != next.level) {
       next = setupNextLevel(next)
