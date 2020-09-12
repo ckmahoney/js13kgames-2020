@@ -1,5 +1,5 @@
 import {Quadtree} from './store'
-import {Sequence, Synth, partLead, partHarmony, partBass, intervalsToMelody, ac as audioContext, getBeatLength, getBeatIndex} from './Sequencer'
+import {Sequence, Synth, partLead, partHarmony, partKick, partBass, partHat, intervalsToMelody, ac as audioContext, getBeatLength, getBeatIndex} from './Sequencer'
 const { abs, sin, cos, pow, sqrt, floor, ceil, random, PI, max, min } = Math
 
 
@@ -259,38 +259,40 @@ const roleAttributes =
     , text: '@' }
   }
 
-
 const Presets = 
   { [Clan.Yellow]: 
     { tonic: 88
     , bpm: 70
     , voices:
       { [Role.bass]: [0, 5, 0, 7]
+      // { [Role.bass]: [0, 0, 0, 0]
       , [Role.tenor]: [0, 5, NaN, 5]
       , [Role.alto]: [7, 2, NaN]
       , [Role.soprano]: [12, 4, NaN, 12, 7, NaN, 4, 7]
+      }
+    }
+  , [Clan.Blue]: 
+    { tonic: 80
+    , bpm: 93.333
+    , voices: 
+      { [Role.bass]: [0, 1, 3, 0]
+      , [Role.tenor]: [4, 4, 2, 4]
+      , [Role.alto]: [7, 4, 7, NaN]
+      , [Role.soprano]: [12, NaN, NaN, 0]
       }
     }
   , [Clan.Red]: 
     { tonic: 52
     , bpm: 93.333
     , voices: 
-      { [Role.bass]: [7, 0]
+      // { [Role.bass]: [7, NaN, NaN, 0]
+      { [Role.bass]: [0, NaN, NaN, 0]
       , [Role.tenor]: [4, 4, 2, 4]
       , [Role.alto]: [7, 4, 7, NaN]
       , [Role.soprano]: [12, NaN, NaN, 0]
       }
     }
-  , [Clan.Blue]:
-    { tonic: 128
-    , bpm: 124.44/2
-    , voices: 
-      { [Role.bass]: [12, 0, NaN, 0]
-      , [Role.tenor]: [0, 4, 0]
-      , [Role.alto]: [7, NaN, 12]
-      , [Role.soprano]: [4, NaN, NaN, 12, 7, 4, 7, NaN]
-      }
-    }
+  
   }
 
 
@@ -388,8 +390,8 @@ const Presets =
     }
 
 
-const canvasWidth = window.innerWidth
-const canvasHeight = window.innerHeight
+const canvasWidth = min(1200,window.innerWidth)
+const canvasHeight = min(800,window.innerHeight)
 const playerHeight = 80
 const playerWidth = 80
 const droneWidth = 50
@@ -437,6 +439,7 @@ const randomInt = (min = 0, max = 1) =>
 
 const log = (...any: any[]): SideFX => 
   <void><unknown> console.log(any)
+
 
 
 const coinToss = (): boolean =>
@@ -667,10 +670,10 @@ const addToEnsemble = (ensemble: Ensemble, clan: Clan, key: Role, amt = 2): Ense
 
 function getSynth(role: Role): Synth {
   const roles = 
-    { [Role.bass]: partBass
+    { [Role.bass]: partKick
     , [Role.tenor]: partHarmony
     , [Role.alto]: partLead
-    , [Role.soprano]: partHarmony
+    , [Role.soprano]: partHat
     }
     return (roles[role] || partHarmony)
 }
@@ -681,6 +684,7 @@ function getSynth(role: Role): Synth {
 function beatmatch(index, list: any[]) {
   return [...list.concat().slice(index, list.length), ...list.concat().slice(0, index)]
 }
+
 
 const choppy = x => 
  0.5
@@ -743,7 +747,7 @@ function game() {
 
     // start the first one
     if (typeof part.sequencer == 'undefined') {
-      const notes = intervalsToMelody(part.tonic, getDuration(role), beatmatch(beat, part.melody))
+      const notes = intervalsToMelody(part.tonic, getDuration(role), part.melody)
       const play = synth(now, part.bpm, notes)
       part.sequencer = play()
       part.sequencer.osc.onended = (): SideFX => {
@@ -848,8 +852,10 @@ function game() {
 
 
   const drawTiles = (time, ctx, state): SideFX => {
-    let tw = 30
-    let th = 30
+    // let tw = 30
+    // let th = 30
+    let tw = 90
+    let th = 90 + (downScale(time, 3))
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
 
@@ -1055,23 +1061,27 @@ function game() {
   }
  
 
-
   const enumKeys = (e) =>
     Object.keys(e).map(a => parseInt(a)).filter(aN)
 
 
   /** Create a room with new values compared to a previous room. */
-  const nextRoom = (pClan: Clan, pRole: Role): Room => {
+  const nextRoom = (pClan: Clan, pRole: Role,level): Room => {
     const altClans = enumKeys(Clan).filter(k => k!= pClan)
-    const altRoles = enumKeys(Role).filter(k => k!= pRole)
     const clan =altClans[randomInt(0,altClans.length-1)]
-    const role = altRoles[randomInt(0,altRoles.length-1)]
-    return {clan, role}
+
+    // do hats after kick
+    if ( level == 1) {
+      return {clan, role: Role.soprano}
+    }
+
+    // Assign roles based on level for even distribution
+    return {clan, role:Role[Role[level%4]]}
   }
 
 
   const setupNextLevel = (state: State): State => {
-    const room = nextRoom(state.room.clan, state.room.role)
+    const room = nextRoom(state.room.clan, state.room.role,state.level)
     const drones = getDrones(state.level * 2)
     return {...state, drones, room}
   }
@@ -1178,23 +1188,6 @@ function game() {
 
   playback(state, loop, config)
 }
-
-
-const getSoundtrackParts = (clan: Clan, role: Role): [number,number][] => {
-  const notes = []
-  return notes
-}
-
-
-  /**
-the game state must be aware of current global baseline bpm and measure number
-it does not need a record of it
-
-
-  */
-
-
-
 
 
 

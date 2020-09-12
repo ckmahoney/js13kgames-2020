@@ -22,10 +22,6 @@ export let transpose = (freq: number, steps: number): Freq   => {
 
 
 export const ac = new AudioContext()
-const delay = ac.createDelay(4)
-delay.delayTime.value = (60/120/4) //quarter note at 120bpm
-
-delay.connect(ac.destination);
 
 
 export type Note = [number, number] | number[][]
@@ -43,6 +39,7 @@ export function Sequence( tempo, notes: Note[] = []) {
   console.log(`starting new sequence with tempo, notes`, tempo, notes)
   this.ac = ac;
   this.createFxNodes();
+  this.fx = [];
   this.tempo = tempo || 120;
   this.loop = true;
   this.smoothing = 0;
@@ -51,7 +48,7 @@ export function Sequence( tempo, notes: Note[] = []) {
 }
 
 // create gain and EQ nodes, then connect 'em
-let createFxNodes = () => {
+Sequence.prototype.createFxNodes = function() {
   const eq = [ [ 'bass', 100 ], [ 'mid', 1000 ] , [ 'treble', 2500 ] ]
   let prev = this.gain = this.ac.createGain();
   eq.forEach(function( config, fx) {
@@ -77,24 +74,49 @@ let createFxNodes = () => {
 
 
 // recreate the oscillator node (happens on every play)
-let createOscillator = () => {
+Sequence.prototype.createOscillator = function() {
   this.stop();
-  this.osc = this.ac.createOscillator();
-  this.osc.type = this.waveType || 'square';
-  this.gain.value = 0.1
-  if (this.type == 'lead') {
-    this.osc.connect(delay);
-    this.osc.connect(this.ac.destination);
-    this.osc.connect(this.ac.destination);
+    
+  if (this.role == 'hat') {
+    var bufferSize = 2 * ac.sampleRate,
+        noiseBuffer = ac.createBuffer(1, bufferSize, ac.sampleRate),
+        output = noiseBuffer.getChannelData(0);
+
+    for (var i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+    }
+
+    this.osc = ac.createBufferSource();
+    this.osc.buffer = noiseBuffer;
+    this.osc.loop = true;
+
+  } else {
+    this.osc = this.ac.createOscillator();
+    this.osc.type = this.shape
   }
+
+  this.gain.value = 0.2;
+
+  if (this.role == 'kick') {
+    const distortion = this.ac.createWaveShaper();
+    distortion.curve = distortionCurve(400);
+    distortion.oversample = '4x';
+    this.osc.connect(distortion)
+    distortion.connect(ac.destination)
+    return this;
+  }
+
+
   this.osc.connect( this.gain );
+  this.osc.connect(ac.destination);
+
   return this;
 };
 
 
 // schedules this.notes[ index ] to play at the given time
 // returns an AudioContext timestamp of when the note will *end*
-let scheduleNote = (index, when ) => {
+Sequence.prototype.scheduleNote = function( index, when ) {
   const duration = 60 / this.tempo * this.notes[ index ][1],
     cutoff = duration * ( 1 - ( this.staccato || 0 ) );
 
@@ -110,20 +132,20 @@ let scheduleNote = (index, when ) => {
 
 
 // get the next note
-let getNextNote = (index ) => {
+Sequence.prototype.getNextNote = function( index ) {
   return this.notes[ index < this.notes.length - 1 ? index + 1 : 0 ];
 };
 
 
 // how long do we wait before beginning the slide? (in seconds)
-let getSlideStartDelay = (duration ) => {
+Sequence.prototype.getSlideStartDelay = function( duration ) {
   return duration - Math.min( duration, 60 / this.tempo * this.smoothing );
 };
 
 
 // slide the note at <index> into the next note at the given time,
 // and apply staccato effect if needed
-let slide = (index, when, cutoff ) => {
+Sequence.prototype.slide = function( index, when, cutoff ) {
   const next = this.getNextNote( index ),
     start = this.getSlideStartDelay( cutoff );
   this.setFrequency( this.notes[ index ][0], when + start );
@@ -131,25 +153,31 @@ let slide = (index, when, cutoff ) => {
   return this;
 };
 
+Sequence.prototype.setFrequency = function( freq, when ) {
+  if (this.osc instanceof AudioBufferSourceNode) {
+    console.log('setting frequency on the node i guess? maybe')
+  }
 
-let setFrequency = (freq, when ) => {
-  this.osc.frequency.setValueAtTime( freq, when );
+  if (this.osc instanceof OscillatorNode) {
+    this.osc.frequency.setValueAtTime( freq, when );
+  }
+
   return this;
 };
 
-let rampFrequency = (freq, when ) => {
+Sequence.prototype.rampFrequency = function( freq, when ) {
   this.osc.frequency.linearRampToValueAtTime( freq, when );
   return this;
 };
 
 
 // run through all notes in the sequence and schedule them
-let play = (when ) => {
-  when = typeof when === 'number' ? when : this.ac.currentTime;
+Sequence.prototype.play = function( when ) {
+  when = (typeof when === 'number') ? when : this.ac.currentTime;
 
   this.createOscillator();
   this.osc.start( when+1 );
-
+console.log(`starting ${this.role}`)
   this.notes.forEach(function( note, i ) {
     when = this.scheduleNote( i, when );
   }.bind( this ));
@@ -160,7 +188,7 @@ let play = (when ) => {
 
 
 // stop playback, null out the oscillator, cancel parameter automation
-let stop = () => {
+Sequence.prototype.stop = function() {
   if (this.osc) {
     this.osc.stop( 0 );
     this.osc.frequency.cancelScheduledValues( 0 );
@@ -183,7 +211,7 @@ export const partLead = (when, tempo, melody: Note[]) => {
   seq.bass.gain.value = -4
   seq.mid.frequency.value = 800;
   seq.mid.gain.value = 3;
-  seq.waveType = 'square'
+  seq.type = 'square'
   seq.hp.frequency.value = 1200
   seq.role = 'lead'
 
@@ -199,7 +227,8 @@ export const partHarmony = (when, tempo, melody: Note[]) => {
   seq.mid.frequency.value = 1200;
   seq.gain.gain.value = 0.8;
   seq.staccato = 0.55;
-  seq.waveType = 'triangle'
+  seq.type = 'triangle'
+  seq.role = 'harmony'
   return function play() {
     seq.play(when)
     return seq
@@ -221,7 +250,28 @@ export const partBass = (when, tempo, melody: Note[]) => {
   seq.mid.frequency.value = 500;
   seq.treble.gain.value = -4;
   seq.treble.frequency.value = 1400;
-  seq.waveType = 'square'
+  seq.role = 'bass'
+  seq.type = 'square'
+
+  return function play() {
+    seq.play(when)
+    return seq
+  }
+}
+
+
+export const partHat = (when, tempo, melody: Note[]) => {
+  const seq = new Sequence(tempo, melody);
+  seq.staccato = 0.55;
+  seq.gain.gain.value = -10.0;
+  seq.bass.frequency.value = 6000;
+  seq.mid.frequency.value = 10000;
+  seq.mid.gain.value = 3;
+  seq.hp.frequency.value = 22000
+  seq.shape = 'square'
+  seq.role = 'hat'
+  seq.hp.frequency.value = 1200
+
 
   return function play() {
     seq.play(when)
@@ -234,6 +284,7 @@ export const partKick = (when, tempo, melody: Note[]) => {
   const seq = new Sequence(tempo, melody);
 
   seq.gain.gain.value = 0.65;
+  seq.gain.gain.value = 0.1;
    
   seq.bass.gain.value = 3;
   seq.bass.frequency.value = 40;
@@ -241,7 +292,12 @@ export const partKick = (when, tempo, melody: Note[]) => {
   seq.mid.frequency.value = 300;
   seq.treble.gain.value = -4;
   seq.treble.frequency.value = 1400;
-  seq.waveType = 'square'
+  seq.role = 'kick'
+  seq.shape = 'sine'
+
+  seq.lp.frequency.value = 120
+  seq.hp.frequency.value = 32
+
 
   return function play() {
     seq.play(when)
@@ -270,3 +326,19 @@ export function getStartOfNextBar(time, bpm, notes) {
   const beatWidth = getBeatLength(bpm)
 
 }
+
+function distortionCurve(amt = 50) {
+  var n_samples = 44100,
+    curve = new Float32Array(n_samples),
+    deg = Math.PI / 180,
+    i = 0,
+    x;
+  for ( ; i < n_samples; ++i ) {
+    x = i * 2 / n_samples - 1;
+    curve[i] = ( 3 + amt ) * x * 20 * deg / ( Math.PI + amt * Math.abs(x) );
+  }
+
+
+  return curve;
+};
+

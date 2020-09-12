@@ -1,65 +1,74 @@
-export function Quadtree(bounds, limits = 4, depth = 10, level = 0, objects = [], nodes = []) {
+/**
+ * uglified quadtree for golfing 
+ * @param b Bounds
+ * @param l limit
+ * @param d depth
+ * @param lv level
+ * @param os objects <T>[]
+ * @param ns nodes Quadtree[]
+ */
+export let Quadtree = (b, l = 4, d = 10, lv = 0, os = [], ns = [])  => {
     let insert = o => {
         var i = 0,
             indexes;
          
-        //if we have subnodes, call insert on matching subnodes
-        if(nodes.length) {
+        //if we have subns, call insert on matching subns
+        if(ns.length) {
             indexes = getIndex(o);
      
             for(i=0; i<indexes.length; i++) {
-                nodes[indexes[i]].insert(o);     
+                ns[indexes[i]].insert(o);     
             }
             return o;
         }
      
         //otherwise, store object here
-        objects.push(o);
+        os.push(o);
 
-        //limits reached
-        if(objects.length > limits && level < depth) {
+        //l reached
+        if(os.length > l && lv < d) {
 
-            //split if we don't already have subnodes
-            if(!nodes.length) {
+            //split if we don't already have subns
+            if(!ns.length) {
                 //@ts-ignore
                 split();
             }
             
-            //add all objects to their corresponding subnode
-            for(i=0; i<objects.length; i++) {
-                indexes = getIndex(objects[i]);
+            //add all os to their corresponding subnode
+            for(i=0; i<os.length; i++) {
+                indexes = getIndex(os[i]);
                 for(var k=0; k<indexes.length; k++) {
-                    nodes[indexes[k]].insert(objects[i]);
+                    ns[indexes[k]].insert(os[i]);
                 }
             }
 
             //clean up this node
-            objects = [];
+            os = [];
         }
         return o;
     }
     let retrieve = o => { 
         var indexes = getIndex(o),
-        returnObjects = objects;
+        r = os;
             
-        //if we have subnofdes, retrieve their objects
-        if(nodes.length) {
+        //if we have subnofdes, retrieve their os
+        if(ns.length) {
             for(var i=0; i<indexes.length; i++) {
-                returnObjects = returnObjects.concat(nodes[indexes[i]].retrieve(o));
+                r = r.concat(ns[indexes[i]].retrieve(o));
             }
         }
 
         //remove duplicates
-        returnObjects = returnObjects.filter(function(item, index) {
-            return returnObjects.indexOf(item) >= index;
+        r = r.filter(function(item, index) {
+            return r.indexOf(item) >= index;
         });
      
-        return returnObjects;
+        return r;
     }
     let getIndex = o => {
         var indexes = [],
-            verticalMidpoint    = bounds.x + (bounds.width/2),
-            horizontalMidpoint  = bounds.y + (bounds.height/2);    
+            verticalMidpoint    = b.x + (b.width/2),
+            horizontalMidpoint  = b.y + (b.height/2);    
 
         var startIsNorth = o.y < horizontalMidpoint,
             startIsWest  = o.x < verticalMidpoint,
@@ -89,36 +98,36 @@ export function Quadtree(bounds, limits = 4, depth = 10, level = 0, objects = []
         return indexes;
     }
     let split = _ => {
-        var next   = level + 1,
-        width    = bounds.width/2,
-            height   = bounds.height/2,
-            x           = bounds.x,
-            y           = bounds.y;        
+        var next   = lv + 1,
+        width    = b.width/2,
+            height   = b.height/2,
+            x           = b.x,
+            y           = b.y;        
         
         const make = (x, y) => (Quadtree({x,y,width,height}))
 
         //top right node
-        nodes[0] = make(x+width,y,)
+        ns[0] = make(x+width,y,)
         
         //top left node
-        nodes[1] = make(x,y)
+        ns[1] = make(x,y)
         
         //bottom left node
-        nodes[2] = make(x,y+height)
+        ns[2] = make(x,y+height)
         
         //bottom right node
-        nodes[3] = make(x+width,y+width)
+        ns[3] = make(x+width,y+width)
     }
     let clear = _ => {
-        objects = [];
+        os = [];
  
-        for(let i=0; i < nodes.length; i++) {
-            if(nodes.length) {
-                nodes[i].clear();
+        for(let i=0; i < ns.length; i++) {
+            if(ns.length) {
+                ns[i].clear();
               }
         }
 
-        nodes = [];
+        ns = [];
     }
     return {insert, retrieve, getIndex, split, clear}
 }
