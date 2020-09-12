@@ -16,8 +16,16 @@
   [x] of mixed clans
   [x] of mixed volumes
 
+[] Create drops
+  [x] music element
+  [] buff
 
-[] Create pickups
-  [x] musical element
-  [] player buff
+[] apply buff modifiers
+  
+[] Add sceen tweening
+[] Add title screen
+  [] menu (play, instructions)
+  [] infinite background
 
+[] Use kick drum for bassline
+[] Use hi hat for soprano
