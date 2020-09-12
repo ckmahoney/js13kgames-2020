@@ -1,12 +1,14 @@
+type Freq = number;
+
+
 let transpositionMap = (rising = true) =>
   [ 1, (16/15), (9/8), (6/5), (5/4), (4/3), rising ? (45/32) : (25/18)]
 
-type Freq = number;
 
 export let transpose = (freq: number, steps: number): Freq   => {
   // Use `NaN` to represent a rest
-  // if ( isNaN(freq)) 
-  //   return 0
+  if (isNaN(freq)) 
+    return 1
   
   let modTable = transpositionMap() 
   let bound = modTable.length - 1
@@ -17,6 +19,7 @@ export let transpose = (freq: number, steps: number): Freq   => {
   steps = steps - bound
   return transpose(transpose(freq, bound), steps)
 }
+
 
 export const ac = new AudioContext()
 const delay = ac.createDelay(4)
@@ -215,6 +218,26 @@ export const partBass = (when, tempo, melody: Note[]) => {
   seq.bass.frequency.value = 80;
   seq.mid.gain.value = -2;
   seq.mid.frequency.value = 500;
+  seq.treble.gain.value = -4;
+  seq.treble.frequency.value = 1400;
+  seq.waveType = 'square'
+
+  return function play() {
+    seq.play(when)
+    return seq
+  }
+}
+
+
+export const partKick = (when, tempo, melody: Note[]) => {
+  const seq = new Sequence(tempo, melody);
+
+  seq.gain.gain.value = 0.65;
+   
+  seq.bass.gain.value = 3;
+  seq.bass.frequency.value = 40;
+  seq.mid.gain.value = -0;
+  seq.mid.frequency.value = 300;
   seq.treble.gain.value = -4;
   seq.treble.frequency.value = 1400;
   seq.waveType = 'square'
