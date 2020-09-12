@@ -40,6 +40,7 @@ function Note( freq, duration ) {
 
 
 export function Sequence( tempo, notes: Note[] = []) {
+  console.log(`starting new sequence with tempo, notes`, tempo, notes)
   this.ac = ac;
   this.createFxNodes();
   this.tempo = tempo || 120;
@@ -50,7 +51,7 @@ export function Sequence( tempo, notes: Note[] = []) {
 }
 
 // create gain and EQ nodes, then connect 'em
-Sequence.prototype.createFxNodes = function() {
+let createFxNodes = () => {
   const eq = [ [ 'bass', 100 ], [ 'mid', 1000 ] , [ 'treble', 2500 ] ]
   let prev = this.gain = this.ac.createGain();
   eq.forEach(function( config, fx) {
@@ -76,7 +77,7 @@ Sequence.prototype.createFxNodes = function() {
 
 
 // recreate the oscillator node (happens on every play)
-Sequence.prototype.createOscillator = function() {
+let createOscillator = () => {
   this.stop();
   this.osc = this.ac.createOscillator();
   this.osc.type = this.waveType || 'square';
@@ -93,7 +94,7 @@ Sequence.prototype.createOscillator = function() {
 
 // schedules this.notes[ index ] to play at the given time
 // returns an AudioContext timestamp of when the note will *end*
-Sequence.prototype.scheduleNote = function( index, when ) {
+let scheduleNote = (index, when ) => {
   const duration = 60 / this.tempo * this.notes[ index ][1],
     cutoff = duration * ( 1 - ( this.staccato || 0 ) );
 
@@ -109,20 +110,20 @@ Sequence.prototype.scheduleNote = function( index, when ) {
 
 
 // get the next note
-Sequence.prototype.getNextNote = function( index ) {
+let getNextNote = (index ) => {
   return this.notes[ index < this.notes.length - 1 ? index + 1 : 0 ];
 };
 
 
 // how long do we wait before beginning the slide? (in seconds)
-Sequence.prototype.getSlideStartDelay = function( duration ) {
+let getSlideStartDelay = (duration ) => {
   return duration - Math.min( duration, 60 / this.tempo * this.smoothing );
 };
 
 
 // slide the note at <index> into the next note at the given time,
 // and apply staccato effect if needed
-Sequence.prototype.slide = function( index, when, cutoff ) {
+let slide = (index, when, cutoff ) => {
   const next = this.getNextNote( index ),
     start = this.getSlideStartDelay( cutoff );
   this.setFrequency( this.notes[ index ][0], when + start );
@@ -131,19 +132,19 @@ Sequence.prototype.slide = function( index, when, cutoff ) {
 };
 
 
-Sequence.prototype.setFrequency = function( freq, when ) {
+let setFrequency = (freq, when ) => {
   this.osc.frequency.setValueAtTime( freq, when );
   return this;
 };
 
-Sequence.prototype.rampFrequency = function( freq, when ) {
+let rampFrequency = (freq, when ) => {
   this.osc.frequency.linearRampToValueAtTime( freq, when );
   return this;
 };
 
 
 // run through all notes in the sequence and schedule them
-Sequence.prototype.play = function( when ) {
+let play = (when ) => {
   when = typeof when === 'number' ? when : this.ac.currentTime;
 
   this.createOscillator();
@@ -159,7 +160,7 @@ Sequence.prototype.play = function( when ) {
 
 
 // stop playback, null out the oscillator, cancel parameter automation
-Sequence.prototype.stop = function() {
+let stop = () => {
   if (this.osc) {
     this.osc.stop( 0 );
     this.osc.frequency.cancelScheduledValues( 0 );
