@@ -502,8 +502,8 @@ const createPlayer = (): Player => {
   , name: 'player'
   , width: playerWidth
   , height: playerHeight
-  , x: canvasWidth - playerWidth
-  , y: 10
+  , x: (canvasWidth)/2
+  , y: canvasHeight / 5
   , volume: 100
   , speed: 100
   , luck: 100
@@ -637,7 +637,6 @@ const handlePlayerCollisions = (state, tree): any[] => {
 
 
 const applyShotCollisions = (state, tree): State => {
-
   const allTouches = state.shots.map(shot => tree.retrieve(shot))
   const touches = allTouches.reduce((a, x) => [...a,...x], [])
   const defenderIDs = touches.map(drone => drone.objectID)
@@ -645,15 +644,6 @@ const applyShotCollisions = (state, tree): State => {
   // destroy on contact
   const drones = state.drones.filter(drone => 
     !defenderIDs.includes(drone.objectID))
-
-  // const drones = state.shots.reduce(function shootAtDrones(remainingDrones,shot) {
-  //   const collisions = tree.retrieve(shot).filter((unit) => 
-  //     (collides(unit, shot))).filter(unit => unit.name != 'player')
-    
-  //   const defenderIDs = collisions.map(d => d.objectID)
-  //   return remainingDrones.filter(drone => 
-  //     !defenderIDs.includes(drone.objectID))
-  // }, state.drones)
 
   return {...state, drones}
 }
@@ -858,14 +848,14 @@ function game() {
 
 
   const drawTiles = (time, ctx, state): SideFX => {
-    let tw = 80
-    let th = 80
+    let tw = 30
+    let th = 30
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
 
     for (let i=0;i<nx;i++) {
-      // let r = (i *downScale(time, 3)) % 255
-      let r = useMod(i,time,state)
+      let r = (i *downScale(time, 3)) % 255
+      // let r = useMod(i,time,state)
       for (let j=0;j<ny;j++) {
         let g = useMod(j,time,state)
         let b = useMod(i+j,time,state)
