@@ -1148,7 +1148,7 @@ function game() {
       ctx.closePath()
     }
 
-    const tree = new Quadtree({x: 0, y: 0, width: canvasWidth, height: canvasHeight }, 3, 4);
+    const tree = Quadtree({x: 0, y: 0, width: canvasWidth, height: canvasHeight }, 3, 4);
     tick(0, state, scene, tree)
   }
 

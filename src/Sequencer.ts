@@ -1,17 +1,28 @@
-import { transpose } from './music'
+let transpositionMap = (rising = true) =>
+  [ 1, (16/15), (9/8), (6/5), (5/4), (4/3), rising ? (45/32) : (25/18)]
 
+type Freq = number;
+
+export let transpose = (freq: number, steps: number): Freq   => {
+  // Use `NaN` to represent a rest
+  // if ( isNaN(freq)) 
+  //   return 0
+  
+  let modTable = transpositionMap() 
+  let bound = modTable.length - 1
+  if (steps <= bound) {
+    return freq * modTable[steps] 
+  }
+
+  steps = steps - bound
+  return transpose(transpose(freq, bound), steps)
+}
 
 export const ac = new AudioContext()
 const delay = ac.createDelay(4)
 delay.delayTime.value = (60/120/4) //quarter note at 120bpm
 
-// const source = ac.createBufferSource();
-// source.buffer = buffers[2];
-// source.loop = true;
-// source.start();
-// source.connect(delay);
 delay.connect(ac.destination);
-
 
 
 export type Note = [number, number] | number[][]
@@ -146,7 +157,7 @@ Sequence.prototype.play = function( when ) {
 
 // stop playback, null out the oscillator, cancel parameter automation
 Sequence.prototype.stop = function() {
-  if ( this.osc ) {
+  if (this.osc) {
     this.osc.stop( 0 );
     this.osc.frequency.cancelScheduledValues( 0 );
     this.osc = null;
