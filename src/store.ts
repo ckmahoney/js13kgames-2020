@@ -1,9 +1,9 @@
-export function Quadtree(bounds, max_objects = 4, max_levels = 10, level = 0) {
+export function Quadtree(bounds, limits = 4, depth = 10, level = 0) {
     
-    this.max_objects    = max_objects || 10;
-    this.max_levels     = max_levels || 4;
+    this.limits    = limits;
+    this.depth     = depth;
     
-    this.level  = level || 0;
+    this.level  = level;
     this.bounds = bounds;
     
     this.objects    = [];
@@ -14,45 +14,27 @@ export function Quadtree(bounds, max_objects = 4, max_levels = 10, level = 0) {
 /**
  * Split the node into 4 subnodes
  */
-Quadtree.prototype.split = function() {
+Quadtree.split = function() {
     
-    var nextLevel   = this.level + 1,
-        subWidth    = this.bounds.width/2,
-        subHeight   = this.bounds.height/2,
+    var next   = this.level + 1,
+        width    = this.bounds.width/2,
+        height   = this.bounds.height/2,
         x           = this.bounds.x,
         y           = this.bounds.y;        
- 
+    
+    const make = (x, y) => (new Quadtree({x,y,width,height}))
+
     //top right node
-    this.nodes[0] = new Quadtree({
-        x       : x + subWidth, 
-        y       : y, 
-        width   : subWidth, 
-        height  : subHeight
-    }, this.max_objects, this.max_levels, nextLevel);
+    this.nodes[0] = make(x+width,y,)
     
     //top left node
-    this.nodes[1] = new Quadtree({
-        x       : x, 
-        y       : y, 
-        width   : subWidth, 
-        height  : subHeight
-    }, this.max_objects, this.max_levels, nextLevel);
+    this.nodes[1] = make(x,y)
     
     //bottom left node
-    this.nodes[2] = new Quadtree({
-        x       : x, 
-        y       : y + subHeight, 
-        width   : subWidth, 
-        height  : subHeight
-    }, this.max_objects, this.max_levels, nextLevel);
+    this.nodes[2] = make(x,y+height)
     
     //bottom right node
-    this.nodes[3] = new Quadtree({
-        x       : x + subWidth, 
-        y       : y + subHeight, 
-        width   : subWidth, 
-        height  : subHeight
-    }, this.max_objects, this.max_levels, nextLevel);
+    this.nodes[3] = make(x+width,y+width)
 };
 
 
@@ -62,7 +44,7 @@ Quadtree.prototype.split = function() {
  * @return Array            an array of indexes of the intersecting subnodes 
  *                          (0-3 = top-right, top-left, bottom-left, bottom-right / ne, nw, sw, se)
  */
-Quadtree.prototype.getIndex = function(pRect) {
+Quadtree.getIndex = function(pRect) {
     
     var indexes = [],
         verticalMidpoint    = this.bounds.x + (this.bounds.width/2),
@@ -103,7 +85,7 @@ Quadtree.prototype.getIndex = function(pRect) {
  * objects to their corresponding subnodes.
  * @param Object pRect        bounds of the object to be added { x, y, width, height }
  */
-Quadtree.prototype.insert = function(pRect) {
+Quadtree.insert = function(pRect) {
     
     var i = 0,
         indexes;
@@ -121,8 +103,8 @@ Quadtree.prototype.insert = function(pRect) {
     //otherwise, store object here
     this.objects.push(pRect);
 
-    //max_objects reached
-    if(this.objects.length > this.max_objects && this.level < this.max_levels) {
+    //limits reached
+    if(this.objects.length > this.limits && this.level < this.depth) {
 
         //split if we don't already have subnodes
         if(!this.nodes.length) {
@@ -149,7 +131,7 @@ Quadtree.prototype.insert = function(pRect) {
  * @param Object pRect      bounds of the object to be checked { x, y, width, height }
  * @Return Array            array with all detected objects
  */
-Quadtree.prototype.retrieve = function(pRect) {
+Quadtree.retrieve = function(pRect) {
      
     var indexes = this.getIndex(pRect),
         returnObjects = this.objects;
@@ -173,7 +155,7 @@ Quadtree.prototype.retrieve = function(pRect) {
 /**
  * Clear the quadtree
  */
-Quadtree.prototype.clear = function() {
+Quadtree.clear = function() {
     
     this.objects = [];
  
