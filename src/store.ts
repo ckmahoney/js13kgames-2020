@@ -7,7 +7,14 @@
  * @param os objects <T>[]
  * @param ns nodes Quadtree[]
  */
-export let Quadtree = (b, l = 4, d = 10, lv = 0, os = [], ns = [])  => {
+export let Quadtree = (bounds, limit = 4, depth = 10, level = 0, objects = [], nodes = []) => {
+    let b = bounds
+    , l = limit
+    , d = depth
+    , lv = level
+    , os = objects
+    , ns = nodes;
+
     let insert = o => {
         var i = 0,
             indexes;
