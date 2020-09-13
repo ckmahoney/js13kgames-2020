@@ -12,9 +12,9 @@ enum Role
 
 
 enum Clan
-  { Blue
-  , Red 
-  , Yellow
+  { B
+  , C 
+  , A
   }
 
 
@@ -226,13 +226,13 @@ interface QTInterface
 
 
 const clanAttributes = 
-  { [Clan.Red]: 
+  { [Clan.C]: 
     { rgb: [255,0,0]
     }
-  , [Clan.Blue]: 
+  , [Clan.B]: 
     { rgb: [0,0,255]
     }
-  , [Clan.Yellow]:
+  , [Clan.A]:
     { rgb: [0,255,0]
     }
   }
@@ -266,32 +266,30 @@ const roleAttributes =
   }
 
 const Presets = 
-  { [Clan.Yellow]: 
+  { [Clan.A]: 
     { tonic: 88
     , bpm: 70
     , voices:
       { [Role.kick]: [0, 5, 0, 7]
-      // { [Role.kick]: [0, 0, 0, 0]
       , [Role.tenor]: [0, 5, NaN, 5]
       , [Role.alto]: [7, 2, NaN]
       , [Role.hat]: [12, 4, NaN, 12, 7, NaN, 4, 7]
       }
     }
-  , [Clan.Blue]: 
+  , [Clan.B]: 
     { tonic: (88*4/3)
     , bpm: 10.5
     , voices: 
-      { [Role.kick]: [0, 0, NaN, NaN, 0, NaN, 0, NaN]
+      { [Role.kick]: [7, 0, NaN, NaN, 0, NaN, 0, NaN]
       , [Role.tenor]: [4, 4, 2, 4]
       , [Role.alto]: [7, 4, 7, NaN]
       , [Role.hat]: [12, NaN, NaN, 0]
       }
     }
-  , [Clan.Red]: 
+  , [Clan.C]: 
     { tonic: (88* 5/4)
     , bpm: 140
     , voices: 
-      // { [Role.kick]: [7, NaN, NaN, 0]
       { [Role.kick]: [0, NaN, NaN, 0]
       , [Role.tenor]: [4, 4, 2, 4]
       , [Role.alto]: [7, 4, 7, NaN]
@@ -921,19 +919,18 @@ function game() {
   }
 
 
-  const dTiles = (time, s, ds) =>
+  const dTiles = (time,s) => 
     (ctx) => {
-      for (let i=0;i<ds;i++) {
-      let r = useMod(i,time,state) % 255
-   
-      for (let j=0;j<ds;j++) {
-        let g = 0
-        let b = useMod(i+j,time,state)
-        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
-        ctx.fillRect(i*s, j*s, i*s + s, j*s+s)
+      for (let i=0;i<canvasWidth / s;i++) {
+        let r = (i *downScale(time, 3)) % 255
+        for (let j=0;j<canvasHeight / s;j++) {
+          let g = useMod(j,time,state)
+          let b = useMod(i+j,time,state)
+          ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
+          ctx.fillRect(i*s -i, j*s -j, i*s + s, j*s+s)
+        }
       }
     }
-  }
 
 
   const drawDoors = (ctx, clan: Clan): SideFX => {
@@ -996,6 +993,7 @@ function game() {
     ill( (ctx) => ctx.clearRect(0,0, canvasWidth, canvasHeight))
 
     if (state.level == 0) {
+      ill(dTiles(time, 30))
       openingScene(time, state, ill)
       ill( drawShots( time, state) )
       drawUI( time, state, ill )
@@ -1011,8 +1009,7 @@ function game() {
 
 
   const swarmScene = (time, state, ill) => {
-    let s = min(30, (120 - state.level * 10))
-    ill( dTiles(time, s, canvasWidth/s) )
+    ill( dTiles(time, 60 - (state.level*3)))
     ill( drawNPCS(time, state) )
     ill( drawPickups(time,state))
     ill( drawShots(time, state))
@@ -1155,8 +1152,7 @@ function game() {
     const offsetWall = canvasWidth/3
     const offsetCeiling = canvasHeight/3
     const elWidth = containerWidth/clans.length
-    
-    ill( dTiles(time, 20 +  downScale(time,5) %20, canvasWidth/20) )
+
 
     state.drops.forEach((unit, i) => {
       ill((ctx) => {
