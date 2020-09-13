@@ -321,6 +321,18 @@ const Presets =
     mods[n % mods.length](time,state)
 
 
+  /** 
+   * Create an object with new properties from previous object
+   * 
+   * Golfy workaround for game 13k submission
+   * Since the spread operator is compiled to `Object.assign()`, 
+   * this lets us name our own copy of the method. 
+   */
+  const assign = (params, defaults = {}) => {
+    return Object.assign(defaults, params)
+  }
+
+
   const collides = (unit, obj): Boolean => {
     if (unit.objectID == obj.objectID) 
       return false
@@ -362,13 +374,11 @@ const Presets =
 
         const defenderIDs = touches.map(drone => drone.objectID)
 
-        // destroy on contact
         const drones = state.drones.filter(drone => 
           !defenderIDs.includes(drone.objectID))
 
-
-        return {...state, drones, ensemble} }
-
+        return assign({drones, ensemble},state)
+    } 
     , element(state: State, touches) {
         if (state.level == 0 && touches.length > 1) {
           // prevent multiple collisions when there are 3 nodes
@@ -390,6 +400,7 @@ const Presets =
     }
 
 
+// settings you can tweak to resize the characters and stages
 const canvasWidth = min(1200,window.innerWidth)
 const canvasHeight = min(800,window.innerHeight)
 const playerHeight = 80
@@ -404,25 +415,34 @@ const config = {
 }
 
 
-
+/* Global unique ID generator. */
 const objectID = () => {
  return objectID.prev++
 }
 objectID.prev = 0
 
 
+/* The end of game has been reached, auto-refresh for the player. */
+const reloadGame = () => {
+  window.location.reload()
+}
 
+
+/* Make a big number smaller */
 const downScale = (n, scale = 3) => n * pow(10,-(scale))
 
 
+/* Debugger to prevent clogging the terminal. */
 const throttle = (seconds = 2) => 
   setTimeout(() => {debugger},seconds*1000)
 
 
+/* Opposite of isNaN */
 const aN: (a:any) => boolean = n => 
   (!isNaN(n) && typeof n == 'number')
 
 
+/* Turns an RGB array to an "rgb(255,255,255)"" value */
 const toColor = (rgb: RGB, mod = (n, time) => n): string => {
   if (rgb.length != 3) {
     return ''
@@ -433,23 +453,27 @@ const toColor = (rgb: RGB, mod = (n, time) => n): string => {
 }
 
 
+/* Gets a random integer in your range */
 const randomInt = (min = 0, max = 1) => 
   floor(random() * (floor(max) - ceil(min) + 1)) + ceil(min);
 
 
+/* logger */
 const log = (...any: any[]): SideFX => 
-  <void><unknown> console.log(any)
+  <void><unknown> any.forEach(a=>console.log(a))
 
 
-
+/* Random boolean value */
 const coinToss = (): boolean =>
   (Math.random() < 0.5)
 
 
+/* Determines if unit is near the canvas edges */
 const isNearWall = <U extends UnitPosition>(u: U, threshold = 0.1): boolean => 
   (u.x <= canvasWidth * threshold) && (u.y <= canvasHeight * threshold)
 
 
+/* Move a unit a random amount in a certain direction */
 const walk = (u: Drone, step = 1 ): Drone => {
   let direction = u.lastwalk ? 'x' : 'y'
   return (
@@ -461,23 +485,23 @@ const walk = (u: Drone, step = 1 ): Drone => {
 
 
 const moveLeft = <U extends UnitPosition>(u: U , amt=7): U => 
-  ({...u, x: u.x > 0 ? u.x-= amt : 0})
+  assign({x: u.x > 0 ? u.x-= amt : 0}, u) 
 
 
 const moveRight = <U extends UnitPosition>(u: U, amt=7): U => 
-  ({...u, x: u.x < (canvasWidth - playerWidth) ? u.x += amt : (canvasWidth - playerWidth)})
+  assign({x: u.x < (canvasWidth - playerWidth) ? u.x += amt : (canvasWidth - playerWidth)}, u)
 
 
 const moveUp = <U extends UnitPosition>(u: U, amt=7): U  => 
-  ({...u, y: u.y >= (0) ? u.y -= amt : playerHeight})
+  assign({y: u.y >= (0) ? u.y -= amt : playerHeight}, u)
 
 
 const moveDown = <U extends UnitPosition>(u: U, amt=7): U  => 
-  ({...u, y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight)})
+  assign({y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight)}, u)
 
 
-const createShot = (opts = {}): Shot => {
-  return ( 
+const createShot = (opts = {}): Shot => 
+  assign(opts, 
     { objectID: objectID()
     , name: 'shot'
     , x: 0
@@ -494,29 +518,25 @@ const createShot = (opts = {}): Shot => {
     }
     , start: (+new Date)
     , duration: 2000
-    , ...opts
     })
-}
 
 
-const createPlayer = (): Player => {
-  return (
-  { objectID: objectID()
-  , name: 'player'
-  , width: playerWidth
-  , height: playerHeight
-  , x: (canvasWidth)/2
-  , y: canvasHeight / 5
-  , volume: 100
-  , speed: 100
-  , luck: 100
-  })
-}
+const createPlayer = (): Player => 
+  ({ objectID: objectID()
+    , name: 'player'
+    , width: playerWidth
+    , height: playerHeight
+    , x: (canvasWidth)/2
+    , y: canvasHeight / 5
+    , volume: 100
+    , speed: 100
+    , luck: 100
+    })
 
 
 const createDrone = (defaults = {}): Drone => {
   const bias = 0.7; // favor the center of the room
-  return Object.assign(
+  return assign(
     { objectID: objectID()
     , name: 'drone'
     , x: bias * Math.random() * canvasWidth
@@ -524,7 +544,7 @@ const createDrone = (defaults = {}): Drone => {
     , width: 40
     , height: 40
     , lastwalk: false
-    }, <Drone>defaults )
+    }, <Drone>defaults)
 }
 
 
@@ -579,7 +599,6 @@ const applyMotion = (player, controlKey): Player => {
 
 /* Respond to the keydown controls */
 const applyControls = (time, state: State): State => {
-  const renderOffset = 0
   let shots = state.shots
 
   if (game.controls.includes('f')) {
@@ -587,30 +606,30 @@ const applyControls = (time, state: State): State => {
     game.controls = game.controls.filter(k => k!='f')
   }
 
-  const isInProgress = (shot) =>
-    1 !== (floor((+new Date) / (shot.start + (shot.duration + renderOffset))))
 
-  return (
-    {...state
-    , shots: shots.filter(isInProgress)
-    , player: game.controls.reduce(applyMotion,state.player)})
+  const isInProgress = (shot) =>
+    1 !== (floor((+new Date) / (shot.start + (shot.duration))))
+
+  return assign(
+    { shots: shots.filter(isInProgress)
+    , player: game.controls.reduce(applyMotion,state.player)
+    }, state)
 }
 
 
 const updateRadial = (unit, time) => {
   const radius = unit.dr(time, unit)
-  return {...unit, radius, width: radius/2, height: radius/2}
+  return assign({radius, width: radius/2, height: radius/2}, unit)
 }
 
 
 /* Update the x,y,width,height,radius properties of units in state. */
-const applyPositions = (time, state: State): State => {
-  return {...state
-    , shots: state.shots.map((u) => updateRadial(u, +new Date))
+const applyPositions = (time, state: State): State => 
+  assign(
+    { shots: state.shots.map((u) => updateRadial(u, +new Date))
     , drops: state.drops.map((u) => updateRadial(u, time))
     , drones: state.drones.map(walk)
-    }
-}
+    }, state)
 
 const applyToTree = (tree: QTInterface, u): QTInterface => {
   tree.insert(u)
@@ -627,16 +646,13 @@ const updateTreeIndices = <Tree>(time, state: State, tree: Tree): Tree => {
     , ...state.shots]).reduce(applyToTree, tree)
 }
 
-const handlePlayerCollisions = (state, tree): any[] => {
-  const droneHits = state.drones.reduce((collisions, drone) => {
+
+const handleDroneCollisions = (drones: Drone[], tree: QTInterface): any[] => 
+  drones.reduce((collisions, drone) => {
     const intersections = tree.retrieve(drone).filter((unit) => collides(unit, drone))
     return collisions.concat(intersections)
   }, [])
 
-
-  const playerHits = tree.retrieve(state.player).filter((u) => collides(u, state.player))
-  return [...playerHits, ...droneHits]
-}
 
 
 const applyShotCollisions = (state, tree): State => {
@@ -784,6 +800,11 @@ function game() {
   }
 
 
+  const isPlayerDead = ensemble => 
+  // @ts-ignore
+    Object.values(ensemble).some(part => part.volume == 0)
+
+
   const drawNPCS: StatefulDraw = (time, state): Draw => {
     const cAttrs = clanAttributes[state.room.clan]
     const rAttrs = roleAttributes[state.room.role]
@@ -792,7 +813,7 @@ function game() {
     return (ctx) => {
       state.drones.forEach( (drone,i) => {
         const {x,y} = drone
-        const text = rAttrs.text.repeat(2)
+        const text = rAttrs.text
         const metrics = ctx.measureText(text)
         drone.width = metrics.width
         ctx.fillStyle = toColor(cAttrs.rgb, rAttrs.colorMod)
@@ -852,8 +873,6 @@ function game() {
 
 
   const drawTiles = (time, ctx, state): SideFX => {
-    // let tw = 30
-    // let th = 30
     let tw = 90
     let th = 90 + (downScale(time, 3))
     let nx = canvasWidth / tw
@@ -873,8 +892,8 @@ function game() {
 
 
   const drawTiles2 = (time, ctx): SideFX => {
-    let tw = 20
-    let th = 20
+    let tw = 80
+    let th = 20 + floor(1.5*tw)
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
 
@@ -882,7 +901,7 @@ function game() {
       let r = (i *downScale(time, 1)) % 255
       for (let j=0;j<ny;j++) {
         let g = (j *downScale(time, 2)) % 255
-        let b = (i+j *downScale(time, 4)) % 255
+        let b = useMod(i+j,time,state)
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
       }
@@ -891,8 +910,8 @@ function game() {
 
 
   const drawTiles3 = (time, ctx): SideFX => {
-    let tw = 20
-    let th = 20
+    let tw = time % 100 + 30
+    let th = time % 120 + 10
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
 
@@ -900,7 +919,7 @@ function game() {
       let r = (i *downScale(time, 1 +time%5)) % 255
       for (let j=0;j<ny;j++) {
         let g = (j *downScale(time, time%2)) % 255
-        let b = (i+j *downScale(time, time%4)) % 255
+        let b = useMod(i+j,time,state)
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
       }
@@ -918,7 +937,7 @@ function game() {
       let r = (i *downScale(time, 1 +time%5)) % 255
       for (let j=0;j<ny;j++) {
         let g = (j *downScale(time, time%2)) % 255
-        let b = (i+j *downScale(time, time%4)) % 255
+        let b = useMod(i+j,time,state)
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
       }
@@ -944,24 +963,18 @@ function game() {
 
 
   const drawRoom: StatefulDraw = (time, state): Draw => {
-    // let selection = floor(downScale(time,3))%4
-    // let render = (
-    //   [ drawTiles
-    //   , drawTiles2
-    //   , drawTiles3
-    //   , drawTiles4
-    //   ])[selection]
+    let animations = 
+      [ drawTiles
+      , drawTiles2
+      , drawTiles3
+      , drawTiles4
+      ]
+    let render = animations[state.level%animations.length]
     return (ctx) => {
-      drawTiles(time, ctx, state)
+      render(time, ctx, state)
     }
   }
 
-
-  const drawEnsembleOverlay = (time, state): Draw => {
-    return (ctx) => {
-
-    }
-  }
 
   const addControlKey: ControlListener = (key) => {
     return controls.includes(key) ? controls : controls.concat(key)
@@ -1047,17 +1060,13 @@ function game() {
   }
 
 
-  const applyPlayerCollisions = (state, touches, type = ''): State => {
-    if (type === '') 
-      type = touches[0].name 
-
-    const action = touchHandlers[type]
-    if (typeof action == 'undefined') {
-      // TODO applyPlayerCollisions sould be explicitly called with known arguments
-      return state
-    }
-
-    return action(state,touches);
+  const applyPlayerCollisions = (state, tree): State => {
+    const hits = tree.retrieve(state.player).filter((unit) => collides(unit, state.player))
+    const next = hits.reduce((next, collider) => 
+      assign(touchHandlers[collider.name], next)
+    , state)
+    log(`has next wit hits`, next)
+    return next
   }
  
 
@@ -1106,11 +1115,8 @@ function game() {
     next = applyPositions(time, next)
     tree = updateTreeIndices(time, next, tree)
     updateSound(next, audioContext)
-    let collisions = handlePlayerCollisions(next, tree)
 
-    if (collisions.length > 0) {
-      next = applyPlayerCollisions(next, collisions)
-    }
+    next = applyPlayerCollisions(next, tree)
 
     if (next.shots.length > 0 && next.drones.length > 0) {
       // shoot at the drones, remove the hits
@@ -1123,9 +1129,9 @@ function game() {
       next = {...next, drones};
     }
 
-    // you died
-    if (Object.values(next.ensemble).some(part => part.volume == 0)) {
-      location.reload()
+
+    if (isPlayerDead(next.ensemble)) {
+      reloadGame()
     }
 
 
