@@ -27,7 +27,7 @@ export const ac = new AudioContext()
 export type Note = [number, number] | number[][]
 
 
-export type Synth = typeof partBass | typeof partHarmony | typeof partLead
+export type Synth = typeof partKick | typeof partHat | typeof partLead
 
 
 function Note( freq, duration ) {
@@ -225,42 +225,42 @@ export const partLead = (when, tempo, melody: Note[]) => {
 }
 
 
-export const partHarmony = (when, tempo, melody: Note[]) => {
-  const seq = new Sequence(tempo, melody);
-  seq.mid.frequency.value = 1200;
-  seq.gain.gain.value = 0.8;
-  seq.staccato = 0.55;
-  seq.type = 'triangle'
-  seq.role = 'harmony'
-  return function play() {
-    seq.play(when)
-    return seq
-  }
-}
+// export const partHarmony = (when, tempo, melody: Note[]) => {
+//   const seq = new Sequence(tempo, melody);
+//   seq.mid.frequency.value = 1200;
+//   seq.gain.gain.value = 0.8;
+//   seq.staccato = 0.55;
+//   seq.type = 'triangle'
+//   seq.role = 'harmony'
+//   return function play() {
+//     seq.play(when)
+//     return seq
+//   }
+// }
 
 
-export const partBass = (when, tempo, melody: Note[]) => {
-  const seq = new Sequence(tempo, melody);
+// export const partBass = (when, tempo, melody: Note[]) => {
+//   const seq = new Sequence(tempo, melody);
 
-  seq.staccato = 0.05;
-  seq.smoothing = 0.05;
-  seq.gain.gain.value = 0.65;
-  seq.mid.gain.value = 3;
+//   seq.staccato = 0.05;
+//   seq.smoothing = 0.05;
+//   seq.gain.gain.value = 0.65;
+//   seq.mid.gain.value = 3;
    
-  seq.bass.gain.value = 6;
-  seq.bass.frequency.value = 80;
-  seq.mid.gain.value = -2;
-  seq.mid.frequency.value = 500;
-  seq.treble.gain.value = -4;
-  seq.treble.frequency.value = 1400;
-  seq.role = 'bass'
-  seq.type = 'square'
+//   seq.bass.gain.value = 6;
+//   seq.bass.frequency.value = 80;
+//   seq.mid.gain.value = -2;
+//   seq.mid.frequency.value = 500;
+//   seq.treble.gain.value = -4;
+//   seq.treble.frequency.value = 1400;
+//   seq.role = 'bass'
+//   seq.type = 'square'
 
-  return function play() {
-    seq.play(when)
-    return seq
-  }
-}
+//   return function play() {
+//     seq.play(when)
+//     return seq
+//   }
+// }
 
 
 export const partHat = (when, tempo, melody: Note[]) => {

@@ -1,5 +1,5 @@
 import {Quadtree} from './store'
-import {Sequence, Synth, partLead, partHarmony, partKick, partBass, partHat, intervalsToMelody, ac as audioContext, getBeatLength, getBeatIndex} from './Sequencer'
+import {Sequence, Synth, partLead, partKick, partHat, intervalsToMelody, ac as audioContext, getBeatLength, getBeatIndex} from './Sequencer'
 const { abs, sin, cos, pow, sqrt, floor, ceil, random, PI, max, min } = Math
 
 
@@ -301,21 +301,6 @@ const Presets =
   
   }
 
-
-  const Songs = 
-    { "opening":
-      { tonic: 84
-      , bpm: 132
-      , voices:
-        { [Role.kick]: [0, NaN, 0, 3, 0, NaN, 0, 4,0,NaN,0,7,9,5,7,2]
-        , [Role.tenor]: [3,3,3,3,4,4,4,4,7,7,7,7,10,10,10,10]
-        , [Role.alto]: [NaN,5,NaN,5,NaN,7,NaN,7,NaN,2,NaN,2,NaN,5,NaN,5]
-        , [Role.hat]: [10, NaN, NaN, NaN, 11, NaN, NaN, NaN, NaN,  11, NaN, NaN, NaN, NaN,  10, NaN, NaN, NaN, NaN, ]
-        }
-      }
-    }
-  
-
   const mods = 
     [(t,state) => floor(downScale(t,(state.level*2)+ 5) % 255)
     ,(t,state) => floor(downScale(t, 51 + state.level) % 255)
@@ -331,10 +316,10 @@ const Presets =
    * Create an object with new properties from previous object
    * 
    * Golfy workaround for game 13k submission
-   * Since the spread operator is compiled to `Object.assign()`, 
+   * Since the spread operator is compiled to `Object.ass()`, 
    * this lets us name our own copy of the method. 
    */
-  const assign = (params, defaults = {}) => 
+  const ass = (params, defaults = {}) => 
     Object.assign({}, defaults, params)
 
 
@@ -384,23 +369,20 @@ const Presets =
 
         const pickups = state.pickups.concat(touches.map(drone => createPickup(drone)))
 
-        return assign({drones, ensemble,pickups},state)
+        return ass({drones, ensemble,pickups},state)
     } 
     , element(state: State, touches) {
-        if (state.level == 0 && touches.length > 1) {
+        if (state.level == 0 && touches.length != 1) {
           // prevent multiple collisions when there are 3 nodes
           return state
         }
 
-        const element = touches[0]
         const room = 
-          { clan: element.clan
-          , role: (state.level == 0) ? Role.kick : element.role }
+          { clan: touches[0].clan
+          , role: (state.level == 0) ? Role.kick : touches[0].role }
 
-          // sidefx
-        const ensemble = addToEnsemble(state.ensemble, room.clan, room.role)
-        return assign(
-          { ensemble
+        return ass(
+          { ensemble: addToEnsemble(state.ensemble, room.clan, room.role)
           , room
           , drops: []
           , level: state.level + 1}, state) }
@@ -416,7 +398,7 @@ const Presets =
           !ids.includes(pickup.objectID))
 
         const ensemble = addToEnsemble(state.ensemble, state.ensemble.clan, state.room.role, 1)
-        return assign({ensemble, pickups}, state)
+        return ass({ensemble, pickups}, state)
       }
     }
 
@@ -506,23 +488,23 @@ const walk = (u: Drone, step = 1 ): Drone => {
 
 
 const moveLeft = <U extends UnitPosition>(u: U , amt=7): U => 
-  assign({x: u.x > 0 ? u.x-= amt : 0}, u) 
+  ass({x: u.x > 0 ? u.x-= amt : 0}, u) 
 
 
 const moveRight = <U extends UnitPosition>(u: U, amt=7): U => 
-  assign({x: u.x < (canvasWidth - playerWidth) ? u.x += amt : (canvasWidth - playerWidth)}, u)
+  ass({x: u.x < (canvasWidth - playerWidth) ? u.x += amt : (canvasWidth - playerWidth)}, u)
 
 
 const moveUp = <U extends UnitPosition>(u: U, amt=7): U  => 
-  assign({y: u.y >= (0) ? u.y -= amt : playerHeight}, u)
+  ass({y: u.y >= (0) ? u.y -= amt : playerHeight}, u)
 
 
 const moveDown = <U extends UnitPosition>(u: U, amt=7): U  => 
-  assign({y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight)}, u)
+  ass({y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight)}, u)
 
 
 const createShot = (opts = {}): Shot => 
-  assign(opts, 
+  ass(opts, 
     { objectID: objectID()
     , name: 'shot'
     , x: 0
@@ -557,7 +539,7 @@ const createPlayer = (): Player =>
 
 const createDrone = (defaults = {}): Drone => {
   const bias = 0.7; // favor the center of the room
-  return assign(
+  return ass(
     { objectID: objectID()
     , name: 'drone'
     , x: bias * Math.random() * canvasWidth
@@ -570,7 +552,7 @@ const createDrone = (defaults = {}): Drone => {
 
 
 const createPickup = (defaults = {}) => 
-  assign(
+  ass(
     { objectID: objectID()
     , name: 'pickup'
     }, defaults)
@@ -593,7 +575,7 @@ const createOpeningMusicDrops = (qty = 3) => {
 
 
 const createMusicDrop = (opts = {}) => 
-  assign(opts,
+  ass(opts,
     { clan: ''
     , x: 0
     , y: 0
@@ -637,7 +619,7 @@ const applyControls = (time, state: State): State => {
   const isInProgress = (shot) =>
     1 !== (floor((+new Date) / (shot.start + (shot.duration))))
 
-  return assign(
+  return ass(
     { shots: shots.filter(isInProgress)
     , player: game.controls.reduce(applyMotion,state.player)
     }, state)
@@ -646,13 +628,13 @@ const applyControls = (time, state: State): State => {
 
 const updateRadial = (unit, time) => {
   const radius = unit.dr(time, unit)
-  return assign({radius, width: radius/2, height: radius/2}, unit)
+  return ass({radius, width: radius/2, height: radius/2}, unit)
 }
 
 
 /* Update the x,y,width,height,radius properties of units in state. */
 const applyPositions = (time, state: State): State => 
-  assign(
+  ass(
     { shots: state.shots.map((u) => updateRadial(u, +new Date))
     , drops: state.drops.map((u) => updateRadial(u, time))
     , drones: state.drones.map(walk)
@@ -684,18 +666,6 @@ const handleDroneCollisions = (drones: Drone[], tree: QTInterface): any[] =>
 
 
 
-const applyShotCollisions = (state, tree): State => {
-  const allTouches = state.shots.map(shot => tree.retrieve(shot))
-  const touches = allTouches.reduce((a, x) => [...a,...x], [])
-  const defenderIDs = touches.map(drone => drone.objectID)
-
-  // destroy on contact
-  const drones = state.drones.filter(drone => 
-    !defenderIDs.includes(drone.objectID))
-
-  return {...state, drones}
-}
-
 
 const addToEnsemble = (ensemble: Ensemble, clan: Clan, key: Role, amt = 2): Ensemble => {
   if  (ensemble[key].clan != clan) {
@@ -716,19 +686,13 @@ const addToEnsemble = (ensemble: Ensemble, clan: Clan, key: Role, amt = 2): Ense
 function getSynth(role: Role): Synth {
   const roles = 
     { [Role.kick]: partKick
-    , [Role.tenor]: partHarmony
+    , [Role.tenor]: partLead
     , [Role.alto]: partLead
     , [Role.hat]: partHat
     }
-    return (roles[role] || partHarmony)
+    return (roles[role] || partLead)
 }
 
-
-
-// reindexes the list to start at `index`
-function beatmatch(index, list: any[]) {
-  return [...list.concat().slice(index, list.length), ...list.concat().slice(0, index)]
-}
 
 
 const choppy = x => 
@@ -777,8 +741,6 @@ function game() {
     , level: 0
     }
 
-
-
   const play = (now, role: Role, part) => {
     if (part.volume == 1) {
       if (typeof part.sequencer != 'undefined') {
@@ -813,14 +775,8 @@ function game() {
   }
   
 
-  const playMusicEnsemble = (now: number, ensemble: Ensemble) => {
-    Object.entries(ensemble).forEach(([key, part]) => play(now, parseInt(key), part))
-  }
-
-
   const updateSound = (state: State, ctx: AudioContext): SideFX => {
-    const { ensemble } = state
-    playMusicEnsemble(ctx.currentTime, state.ensemble)
+    Object.entries(state.ensemble).forEach(([key, part]) => play(ctx.currentTime, parseInt(key), part))
   }
 
 
@@ -853,11 +809,7 @@ function game() {
     }
   }
 
-
   const drawPickups: StatefulDraw = (time, state): Draw => {
-    const cAttrs = clanAttributes[state.room.clan]
-    const rAttrs = roleAttributes[state.room.role]
-
     // use measuretext here because it depends on the ctx
     // it is a sidefx that should go in applyMotion instead
     return (ctx) => {
@@ -869,10 +821,6 @@ function game() {
       })
     }
   }
-
-
- 
-
 
   const drawShots: StatefulDraw = (time, state): Draw => {
     return (ctx) => {
@@ -905,7 +853,7 @@ function game() {
   }
 
 
-  const drawUI= (time, state, illustrate) => {
+  const drawUI= (time, state, ill) => {
     const uiW = 300
     const uiH = 200
     const orbR = 10
@@ -914,7 +862,7 @@ function game() {
     const max = 10
     
     // background
-    illustrate((ctx) => {
+    ill((ctx) => {
       ctx.font = '15px sans-serif'
       ctx.lineWidth = 10
       ctx.strokeStyle = 'black'
@@ -928,7 +876,7 @@ function game() {
       //@ts-ignore
       let progress = ceil(part.volume*qty/max)- 1
       for (let i =0; i<4; i++) {
-        illustrate((ctx) => {
+        ill((ctx) => {
           ctx.lineWidth = 2
           const name = Role[j]
           const metrics = ctx.measureText(name)
@@ -973,128 +921,53 @@ function game() {
   }
 
 
-  const drawTiles = (time, ctx, state): SideFX => {
-    let tw = 90
-    let th = 90 + (downScale(time, 3))
-    let nx = canvasWidth / tw
-    let ny = canvasHeight / th
-
-    for (let i=0;i<nx;i++) {
-      let r = (i *downScale(time, 3)) % 255
-      // let r = useMod(i,time,state)
-      for (let j=0;j<ny;j++) {
-        let g = useMod(j,time,state)
-        let b = useMod(i+j,time,state)
-        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
-        ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
-      }
-    }
-  }
-
-
-  const drawTiles2 = (time, ctx): SideFX => {
-    let tw = 80
-    let th = 20 + floor(1.5*tw)
-    let nx = canvasWidth / tw
-    let ny = canvasHeight / th
-
-    for (let i=0;i<nx;i++) {
-      let r = (i *downScale(time, 1)) % 255
-      for (let j=0;j<ny;j++) {
-        let g = (j *downScale(time, 2)) % 255
-        let b = useMod(i+j,time,state)
-        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
-        ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
-      }
-    }
-  }
-
-
-  const drawTiles3 = (time, ctx): SideFX => {
-    let tw = 100 + 30
-    let th = 120 + 10
-    let nx = canvasWidth / tw
-    let ny = canvasHeight / th
-
-    for (let i=0;i<nx;i++) {
-      let r = useMod(3,time,state) % 255
-      for (let j=0;j<ny;j++) {
+  const dTiles = (time, s, ds) =>
+    (ctx) => {
+      for (let i=0;i<ds;i++) {
+      let r = useMod(i,time,state) % 255
+   
+      for (let j=0;j<ds;j++) {
         let g = 0
         let b = useMod(i+j,time,state)
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
-        ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
-      }
-    }
-  }
-
-
-  const drawTiles4 = (time, ctx): SideFX => {
-    let tw =  200
-    let th =  100
-    let nx = canvasWidth / tw
-    let ny = canvasHeight / th
-
-    for (let i=0;i<nx;i++) {
-      let r = useMod(1,time,state) % 255
-      for (let j=0;j<ny;j++) {
-        let g = 100
-        let b = useMod(i+j,time,state)
-        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
-        ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
+        ctx.fillRect(i*s, j*s, i*s + s, j*s+s)
       }
     }
   }
 
 
   const drawDoors = (ctx, clan: Clan): SideFX => {
-    let altClans = Object.keys(Clan).map(a => parseInt(a)).filter(c => c !== clan).filter(aN)
-    let doorHeight = 40
-    let offsetWall = 0
+    let alt = enumKeys(Clan)
+    let y = 40
+    let x = 0
     let doorWidth = 20
-    let offsetCeiling = (canvasHeight-doorHeight)/3
+    let offY = (canvasHeight-y)/3
 
     // left door
-    ctx.fillStyle = toColor(clanAttributes[altClans[0]].rgb)
-    ctx.fillRect(offsetWall, offsetCeiling, offsetWall + doorWidth, offsetCeiling + doorHeight)
+    ctx.fillStyle = toColor(clanAttributes[alt[0]].rgb)
+    ctx.fillRect(x, offY, x + doorWidth, offY + y)
 
     // right door
-    ctx.fillStyle = toColor(clanAttributes[altClans[1]].rgb)
-    ctx.fillRect(canvasWidth-offsetWall-doorWidth, offsetCeiling, canvasWidth-offsetWall+doorWidth, offsetCeiling + doorHeight)
+    ctx.fillStyle = toColor(clanAttributes[alt[1]].rgb)
+    ctx.fillRect(canvasWidth-x-doorWidth, offY, canvasWidth-x+doorWidth, offY + y)
   }
 
 
-  const drawRoom: StatefulDraw = (time, state): Draw => {
-    let animations = 
-      [ drawTiles
-      , drawTiles2
-      , drawTiles3
-      , drawTiles4
-      ]
-    let render = animations[state.level%animations.length]
-    return (ctx) => {
-      render(time, ctx, state)
-    }
-  }
+  const addControlKey: ControlListener = (key) => 
+    controls.includes(key) ? controls : controls.concat(key)
 
-
-  const addControlKey: ControlListener = (key) => {
-    return controls.includes(key) ? controls : controls.concat(key)
-  }
 
   const removeControlKey: ControlListener = (key) => 
     controls.filter(k => k !== key)
 
 
   const handleKeydown = (e: KeyboardEvent, time, state): SideFX => {  
-    if (e.repeat === true) {
+    if (e.repeat === true) 
       return
-    }
 
-    if (e.key == 'f' && game.controls.includes(e.key)) {
-      game.controls = game.controls.filter(k => k !== e.key)
-    } else {
-      game.controls = game.controls.concat(e.key)
-    }
+    (e.key == 'f' && game.controls.includes(e.key))
+      ? game.controls = game.controls.filter(k => k !== e.key)
+      : game.controls = game.controls.concat(e.key)
 
     const remove = () => {
       game.controls = game.controls.filter(k => k !== e.key)
@@ -1119,38 +992,37 @@ function game() {
   }
 
 
-  const drawStage: UpdateStage = (time, state, illustrate) => {
-    illustrate( (ctx) => ctx.clearRect(0,0, canvasWidth, canvasHeight))
+  const drawStage: UpdateStage = (time, state, ill) => {
+    ill( (ctx) => ctx.clearRect(0,0, canvasWidth, canvasHeight))
 
     if (state.level == 0) {
-      openingScene(time, state, illustrate)
-      illustrate( drawShots( time, state) )
-      drawUI( time, state, illustrate )
+      openingScene(time, state, ill)
+      ill( drawShots( time, state) )
+      drawUI( time, state, ill )
       return
     }
 
-    if (state.drops.length > 0) {
-      dropScene(time, state, illustrate)
-    } else {
-      swarmScene(time, state, illustrate)
-    }
-    drawUI(time, state, illustrate)
+    state.drops.length > 0
+      ? dropScene(time, state, ill)
+      : swarmScene(time, state, ill)
+
+    drawUI(time, state, ill)
   }
 
 
-  const swarmScene = (time, state, illustrate) => {
-    illustrate( drawRoom(time, state) )
-    state.drones.length > 0 && illustrate( drawNPCS(time, state) )
-    state.pickups.length > 0 && illustrate( drawPickups(time,state))
-    state.shots.length > 0 && illustrate( drawShots(time, state))
-    illustrate( drawPlayer(time, state) )
+  const swarmScene = (time, state, ill) => {
+    let s = min(30, (120 - state.level * 10))
+    ill( dTiles(time, s, canvasWidth/s) )
+    ill( drawNPCS(time, state) )
+    ill( drawPickups(time,state))
+    ill( drawShots(time, state))
+    ill( drawPlayer(time, state) )
   }
 
 
-  const dropScene = (time, state, illustrate) => {
-    // illustrate( drawRoom(time, state) )
-    illustrate( drawDrops(time, state) )
-    illustrate( drawPlayer(time, state) )
+  const dropScene = (time, state, ill) => {
+    ill( drawDrops(time, state) )
+    ill( drawPlayer(time, state) )
   }
 
 
@@ -1167,7 +1039,7 @@ function game() {
   const applyPlayerCollisions = (state, tree): State => {
     const hits = tree.retrieve(state.player).filter((unit) => collides(unit, state.player))
     const next = hits.reduce((next, collider, i, collisions) => 
-      assign(touchHandlers[collider.name](state, collisions), next)
+      ass(touchHandlers[collider.name](state, collisions), next)
     , state)
     return next
   }
@@ -1178,24 +1050,20 @@ function game() {
 
 
   /** Create a room with new values compared to a previous room. */
-  const nextRoom = (pClan: Clan, pRole: Role,level): Room => {
-    const altClans = enumKeys(Clan).filter(k => k!= pClan)
-    const clan =altClans[randomInt(0,altClans.length-1)]
-
-    // do hats after kick
-    if ( level == 1) {
-      return {clan, role: Role.hat}
-    }
+  const nextRoom = (c: Clan, level): Room => {
+    const altClans = enumKeys(Clan).filter(k => k!= c)
 
     // Assign roles based on level for even distribution
-    return {clan, role:Role[Role[level%4]]}
+    return {
+      clan: altClans[randomInt(0,altClans.length-1)]
+      , role:level%4}
   }
 
 
   const setupNextLevel = (state: State): State => {
-    const room = nextRoom(state.room.clan, state.room.role,state.level)
+    const room = nextRoom(state.room.clan, state.level)
     const drones = getDrones(state.level * 5)
-    return assign({drones, room, pickups: []}, state)
+    return ass({drones, room, pickups: []}, state)
   }
 
 
@@ -1207,7 +1075,7 @@ function game() {
       , clan: state.room.clan
       , role: state.room.role
       })
-    return assign({drops: [element]}, state)
+    return ass({drops: [element]}, state)
   }
 
   const loop: HandleTick = (time, prev: State, draw, tree) => {
@@ -1239,8 +1107,7 @@ function game() {
         pickups.concat(createPickup(drone))
       , next.pickups)
 
-      // next = applyShotCollisions(next, tree)
-      next = assign({drones, pickups}, next);
+      next = ass({drones, pickups}, next);
     }
 
 
@@ -1267,12 +1134,12 @@ function game() {
     const canvas = document.createElement('canvas')
     canvas.width = canvasWidth
     canvas.height = canvasHeight
-    const ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
+    let ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
     document.body.appendChild(canvas)
     
     const scene: Illustrate = (draw: Draw): SideFX  => {
       ctx.beginPath()
-      ctx.lineWidth = 8
+      ctx.lineWidth = state.level % 4 + 6
       draw(ctx)
       ctx.closePath()
     }
@@ -1282,17 +1149,17 @@ function game() {
   }
 
 
-  const openingScene = (time, state, illustrate) => {
+  const openingScene = (time, state, ill) => {
     const clans = enumKeys(Clan)
     const containerWidth = canvasWidth*2/3
     const offsetWall = canvasWidth/3
     const offsetCeiling = canvasHeight/3
     const elWidth = containerWidth/clans.length
     
-    illustrate((ctx) => drawTiles(time, ctx, state))
+    ill( dTiles(time, 20 +  downScale(time,5) %20, canvasWidth/20) )
 
     state.drops.forEach((unit, i) => {
-      illustrate((ctx) => {
+      ill((ctx) => {
         const attrs =clanAttributes[i]
         const rAttrs =roleAttributes[i]
         ctx.fillStyle = ctx.strokeStyle =  toColor(attrs.rgb,rAttrs[i])
@@ -1302,7 +1169,7 @@ function game() {
       })
     })
 
-    illustrate(drawPlayer(time, state))
+    ill(drawPlayer(time, state))
   }
 
   playback(state, loop, config)
