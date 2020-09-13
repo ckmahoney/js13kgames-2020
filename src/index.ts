@@ -1,5 +1,5 @@
 import {Quadtree} from './store'
-import {Sequence, Synth, partLead, partKick, partHat, intervalsToMelody, ac as audioContext, getBeatLength, getBeatIndex} from './Sequencer'
+import {S as Sequence, Synth, partLead, partKick, partHat, intervalsToMelody, ac as audioContext, getBeatLength, getBeatIndex} from './Sequencer'
 const { abs, sin, cos, pow, sqrt, floor, ceil, random, PI, max, min } = Math
 
 
@@ -300,14 +300,14 @@ const Presets =
   }
 
   const mods = 
-    [(t,state) => floor(downScale(t,(state.level*2)+ 5) % 255)
-    ,(t,state) => floor(downScale(t, 51 + state.level) % 255)
-    ,(t,state) => floor(downScale(t, 91 - state.level) % 255)
-    ,(t,state) => floor(t + 223 % 20)]
+    [(t,x) => downScale(t,(x*2)+ 5) % 255
+    ,(t,x) => downScale(t, 51 + x) % 255
+    ,(t,x) => downScale(t, 91 - x) % 255
+    ,(t,x) => t + 223 % 20]
 
 
-  const useMod = (n,time,state) =>
-    mods[n % mods.length](time,state)
+  const useMod = (n,time,level) =>
+    floor(mods[n % mods.length](time,level))
 
 
   /** 
@@ -370,6 +370,8 @@ const Presets =
         return _({drones, ensemble,pickups},state)
     } 
     , element(state: State, touches) {
+        if (touches.length<1) 
+          return;
         if (state.level == 0 && touches.length != 1) {
           // prevent multiple collisions when there are 3 nodes
           return state
@@ -727,7 +729,7 @@ function game() {
       { [Role.kick]: <SoundSource>{ volume: 1 }
       , [Role.tenor]: <SoundSource>{ volume: 1 }
       , [Role.alto]: <SoundSource>{ volume: 1 }
-      , [Role.hat]: <SoundSource>{ volume: 6 }
+      , [Role.hat]: <SoundSource>{ volume: 1 }
       }
     , drones: []
     , shots: []
@@ -754,17 +756,17 @@ function game() {
       const notes = intervalsToMelody(part.tonic, getDuration(role), part.melody)
       const play = synth(now, part.bpm, notes)
       part.sequencer = play()
-      part.sequencer.osc.onended = (): SideFX => {
+      part.sequencer.o.onended = (): SideFX => {
         delete part.sequencer
       }
       return
     }
 
     // set up the next loop
-    if ((typeof part?.sequencer?.osc.onended == 'undefined') && beat == (part.melody.length - 1)) {
+    if ((typeof part?.sequencer?.o.onended == 'undefined') && beat == (part.melody.length - 1)) {
       const beatWidth = getBeatLength(part.bpm)
       const notes = intervalsToMelody(part.tonic, getDuration(role), part.melody)
-      part.sequencer.osc.onended = (): SideFX => {
+      part.sequencer.o.onended = (): SideFX => {
         delete part.sequencer
       }
     }
@@ -918,8 +920,8 @@ function game() {
       for (let i=0;i<canvasWidth / s;i++) {
         let r = (i *downScale(time, level + 3)) % 255
         for (let j=0;j<canvasHeight / s;j++) {
-          let g = useMod(j,time,state)
-          let b = useMod(j+level,time,state)
+          let g = useMod(j,time % 10000,level)
+          let b = useMod(j+level,time,level)
           ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
           ctx.fillRect(i*s -i, j*s -j, i*s + s, j*s+s)
         }
@@ -1053,7 +1055,7 @@ function game() {
 
   const setupNextLevel = (state: State): State => {
     const room = nextRoom(state.room.clan, state.level)
-    const drones = getDrones(state.level * 5)
+    const drones = getDrones(1+floor(state.level*1.5))
     return _({drones, room, pickups: []}, state)
   }
 
