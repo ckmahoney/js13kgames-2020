@@ -688,34 +688,13 @@ function getSynth(role: Role): Synth {
 }
 
 
-
-const choppy = x => 
- 0.5
-
-
-const shortening = x => {
-  let duration = 1/(x+1)
-  return duration
-} 
-
-
-const tenuto = x => 
-  (x%2==1) ? 0.85 : 0.5
-
-
-const sostenuto = x => 
-  0.99
-
-
-const getDuration = (role: Role) => {
-  const roles = 
-    { [Role.kick]: choppy
-    , [Role.tenor]: tenuto
-    , [Role.alto]: sostenuto
-    , [Role.hat]: shortening
-    }
-    return (roles[role] || tenuto)
-}
+const getDuration = (role: Role) => 
+  (
+    { [Role.kick]: x =>0.5
+    , [Role.tenor]: x =>(x%2==1)? 0.85:05
+    , [Role.alto]: x=>0.95
+    , [Role.hat]: x =>1/(x+1)
+    })[role]
 
 function game() {
   const controls: Controls = []
