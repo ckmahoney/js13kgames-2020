@@ -241,13 +241,13 @@ const clanAttributes =
 const roleAttributes = 
   { [Role.kick]:
     { colorMod(n, time) 
-      { return n == 255 ? 50: n }
+      { return time %2 ? 255: 0 }
     , text: 'K' 
     , rgb: [255, 50, 0]
     }
   , [Role.tenor]:
     { colorMod(n, time) 
-      { return n == 255 ? 100: n }
+      { return time %2 ? 255: 0 }
     , text: 'T'
     , rgb: [255, 250, 0]
     }
@@ -273,41 +273,46 @@ const Presets =
       { [Role.kick]: [0, 5, 0, 7]
       , [Role.tenor]: [4, 7, 2, 5]
       , [Role.alto]: [12, 4, 0]
-      , [Role.hat]: [12, 4, NaN, 12, 7, NaN, 4, 7]
+      , [Role.hat]: [12, 4, 0, 12, 7, 0, 4, 7]
       }
     }
   , [Clan.B]: 
     { tonic: (88*4/3)
     , bpm: 10.5
     , voices: 
-      { [Role.kick]: [7, 0, NaN, NaN, 0, NaN, 0, NaN]
-      , [Role.tenor]: [2, 4, NaN, 4]
-      , [Role.alto]: [0, 4, 7, NaN]
-      , [Role.hat]: [12, NaN, NaN, 0]
+      { [Role.kick]: [7, 0, 4, 12, 0, 0, 0, 12]
+      , [Role.tenor]: [4, 0, 4]
+      , [Role.alto]: [0, 4, 7]
+      , [Role.hat]: [10, 0, 0, 10, 12, 11, 9, 0]
       }
     }
   , [Clan.C]: 
     { tonic: (88* 5/4)
     , bpm: 140
     , voices: 
-      { [Role.kick]: [0, NaN, NaN, 0]
+      { [Role.kick]: [0, 12, 7, 0]
       , [Role.tenor]: [12, 4, 7]
-      , [Role.alto]: [7, 4, 7, NaN]
-      , [Role.hat]: [12, NaN, NaN, 0]
+      , [Role.alto]: [7, 4, 7, 0]
+      , [Role.hat]: [10, 0, 0, 10, 12, 11, 9, 0]
       }
     }
   
   }
 
   const mods = 
-    [(t,x) => downScale(t,(x*2)+ 5) % 255
-    ,(t,x) => downScale(t, 51 + x) % 255
-    ,(t,x) => downScale(t, 91 - x) % 255
+    [(t,x) => scale(t,(x*2)+ 5)
+    ,(t,x) => scale(t, 51 + x)
+    ,(t,x) => scale(t, 91-x)
+    ,(t,x) => t/x
+    ,(t,x) => scale(t,4) / x
+    ,(t,x) => scale(t,3) / ((x+1)*2)
+    ,(t,x) => x+100
+    ,(t,x) => t - (x * 5)
     ,(t,x) => t + 223 % 20]
 
 
   const useMod = (n,time,level) =>
-    floor(mods[n % mods.length](time,level))
+    floor(mods[n % mods.length](time,level)) % 255
 
 
   /** 
@@ -378,7 +383,7 @@ const Presets =
         }
 
         const room = 
-          { clan: touches[0].clan
+          { clan: touches[0]?.clan || 0
           , role: (state.level == 0) ? Role.kick : touches[0].role }
 
         return _(
@@ -391,6 +396,7 @@ const Presets =
         return state;
       }
     , pickup(state, touches) {
+
         // picks up one at a time
         const ids = touches.map(pickup => pickup.objectID)
         const pickups = state.pickups.filter(pickup =>
@@ -402,18 +408,18 @@ const Presets =
 
 
 // settings you can tweak to resize the characters and stages
-const canvasWidth = min(1200,window.innerWidth)
-const canvasHeight = min(800,window.innerHeight)
+const cw = min(1200,window.innerWidth)
+const ch = min(800,window.innerHeight)
 const playerHeight = 80
 const playerWidth = 80
 const droneWidth = 50
 const droneHeight = 50
-const elementRadius = min(100, canvasWidth/6)
+const elementRadius = min(100, cw/6)
 
 const config = {
-  canvasWidth,
-  canvasHeight
-}
+  cw, //canvas height
+  ch // canvas width 
+} // code golf is lame
 
 
 /* Global unique ID generator. */
@@ -430,12 +436,7 @@ const reloadGame = () => {
 
 
 /* Make a big number smaller */
-const downScale = (n, scale = 3) => n * pow(10,-(scale))
-
-
-/* Debugger to prevent clogging the terminal. */
-const throttle = (seconds = 2) => 
-  setTimeout(() => {debugger},seconds*1000)
+const scale = (n, scale = 3) => n * pow(10,-(scale))
 
 
 /* Opposite of isNaN */
@@ -459,11 +460,6 @@ const randomInt = (min = 0, max = 1) =>
   floor(random() * (floor(max) - ceil(min) + 1)) + ceil(min);
 
 
-/* logger */
-const log = (...any: any[]): SideFX => 
-  <void><unknown> any.forEach(a=>console.log(a))
-
-
 /* Random boolean value */
 const coinToss = (): boolean =>
   (Math.random() < 0.5)
@@ -471,7 +467,7 @@ const coinToss = (): boolean =>
 
 /* Determines if unit is near the canvas edges */
 const isNearWall = <U extends UnitPosition>(u: U, threshold = 0.1): boolean => 
-  (u.x <= canvasWidth * threshold) && (u.y <= canvasHeight * threshold)
+  (u.x <= cw * threshold) && (u.y <= ch * threshold)
 
 
 /* Move a unit a random amount in a certain direction */
@@ -490,7 +486,7 @@ const moveLeft = <U extends UnitPosition>(u: U , amt=7): U =>
 
 
 const moveRight = <U extends UnitPosition>(u: U, amt=7): U => 
-  _({x: u.x < (canvasWidth - playerWidth) ? u.x += amt : (canvasWidth - playerWidth)}, u)
+  _({x: u.x < (cw - playerWidth) ? u.x += amt : (cw - playerWidth)}, u)
 
 
 const moveUp = <U extends UnitPosition>(u: U, amt=7): U  => 
@@ -498,7 +494,7 @@ const moveUp = <U extends UnitPosition>(u: U, amt=7): U  =>
 
 
 const moveDown = <U extends UnitPosition>(u: U, amt=7): U  => 
-  _({y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight)}, u)
+  _({y: u.y <= (ch) ? u.y += amt : (ch)}, u)
 
 
 const createShot = (opts = {}): Shot => 
@@ -509,7 +505,7 @@ const createShot = (opts = {}): Shot =>
     , y: 0
     , radius: 0
     , dr: (time, shot, index) => {
-      const maxRadius = floor(canvasWidth/3)
+      const maxRadius = floor(cw/3)
       const progress = (+new Date - shot.start)/(shot.duration)
       if (progress > 1) {
         return 0
@@ -527,8 +523,8 @@ const createPlayer = (): Player =>
     , name: 'player'
     , width: playerWidth
     , height: playerHeight
-    , x: (canvasWidth)/2
-    , y: canvasHeight / 5
+    , x: (cw)/2
+    , y: ch / 5
     , volume: 100
     , speed: 100
     , luck: 100
@@ -540,8 +536,8 @@ const createDrone = (defaults = {}): Drone => {
   return _(
     { objectID: objectID()
     , name: 'drone'
-    , x: bias * Math.random() * canvasWidth
-    , y: bias * Math.random() * canvasHeight
+    , x: bias * Math.random() * cw
+    , y: bias * Math.random() * ch
     , width: 40
     , height: 40
     , lastwalk: false
@@ -556,29 +552,29 @@ const createPickup = (defaults = {}) =>
     }, defaults)
 
 
-const createOpeningMusicDrops = (qty = 3) => {
+const startup = (qty = 3) => {
   const drops = []
-  const containerWidth = canvasWidth*2/qty
-  const offsetWall = canvasWidth/qty
-  const offsetCeiling = (canvasHeight+elementRadius)/2
+  const containerWidth = cw*2/qty
+  const offsetWall = cw/qty
+  const offsetCeiling = (ch+elementRadius)/2
   const elWidth = containerWidth/qty
 
   for (let i = 0; i < 3; i++) {
     const x = offsetWall + (i*elWidth)
     const y = offsetCeiling 
-    drops.push(createMusicDrop({x, y, role: Role.kick, clan: Clan[Clan[i]]}))
+    drops.push(createDrop({x, y, role: Role.kick, clan: Clan[Clan[i]]}))
   }
   return drops
 }
 
 
-const createMusicDrop = (opts = {}) => 
+const createDrop = (opts = {}) => 
   _(opts,
     { clan: ''
     , x: 0
     , y: 0
     , radius: elementRadius
-    , dr: (time, element) => floor(elementRadius * abs(sin((element.objectID)+downScale(time))))
+    , dr: (time, element) => floor(elementRadius * abs(sin((element.objectID)+scale(time))))
     , width: 0
     , height: 0
     , ...opts // do not allow name or objectID to be initialized
@@ -734,7 +730,7 @@ function game() {
     , drones: []
     , shots: []
     , pickups: []
-    , drops: createOpeningMusicDrops()
+    , drops: startup()
     , room: <Room><unknown>{ clan: null, role: Role.kick }
     , level: 0
     }
@@ -834,8 +830,8 @@ function game() {
       drawDoors(ctx, state.room.clan)
       state.drops.forEach( ({x,y,width,height},i) => {
         for (let j =0; j < 3; j++) {
-          rgb[i] = 255
-          const offset =  + downScale(time) + (PI*j/4)
+          rgb[i] = time / i % 255
+          const offset = 0 + scale(time) + (PI*j/4)
           const endpoint = (Math.PI/4) + offset
           ctx.fillStyle = toColor(rgb)
           ctx.arc(x, y, 30, offset, endpoint);
@@ -917,11 +913,11 @@ function game() {
 
   const dTiles = (time,s,level) => 
     (ctx) => {
-      for (let i=0;i<canvasWidth / s;i++) {
-        let r = (i *downScale(time, level + 3)) % 255
-        for (let j=0;j<canvasHeight / s;j++) {
-          let g = useMod(j,time % 10000,level)
-          let b = useMod(j+level,time,level)
+      for (let i=0; i<cw/s;i++) {
+        let r = (i *scale(time, level + 3)) % 255
+        for (let j=0; j<ch/s; j++) {
+          let g = useMod(j,scale(time),level)
+          let b = useMod(j+level,scale(time),level)
           ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
           ctx.fillRect(i*s -i, j*s -j, i*s + s, j*s+s)
         }
@@ -934,7 +930,7 @@ function game() {
     let y = 40
     let x = 0
     let doorWidth = 20
-    let offY = (canvasHeight-y)/3
+    let offY = (ch-y)/3
 
     // left door
     ctx.fillStyle = toColor(clanAttributes[alt[0]].rgb)
@@ -942,7 +938,7 @@ function game() {
 
     // right door
     ctx.fillStyle = toColor(clanAttributes[alt[1]].rgb)
-    ctx.fillRect(canvasWidth-x-doorWidth, offY, canvasWidth-x+doorWidth, offY + y)
+    ctx.fillRect(cw-x-doorWidth, offY, cw-x+doorWidth, offY + y)
   }
 
 
@@ -976,20 +972,23 @@ function game() {
   }
 
 
-  const getDrones = (qty = 4, drones: Drone[] = []): Drone[] => {
+  const getDrones = (qty = 4, drones: Drone[] = [], player: Player): Drone[] => {
     if ( qty === 0 ) 
       return drones
 
-    drones = drones.concat(createDrone())
-    return getDrones(qty-1, drones)
+    let drone = createDrone()
+    // prevent collision on spawn
+    return collides(drone, player)
+      ? getDrones(qty, drones, player)
+      : getDrones(qty-1, drones.concat(drone), player)
   }
 
 
   const drawStage: UpdateStage = (time, state, ill) => {
-    ill( (ctx) => ctx.clearRect(0,0, canvasWidth, canvasHeight))
+    ill( (ctx) => ctx.clearRect(0,0, cw, ch))
 
     if (state.level == 0) {
-      ill(dTiles(time, 30, state.level))
+      ill(dTiles(time + 1500, 30, state.level))
       openingScene(time, state, ill)
       ill( drawShots( time, state) )
       drawUI( time, state, ill )
@@ -1044,27 +1043,27 @@ function game() {
 
   /** Create a room with new values compared to a previous room. */
   const nextRoom = (c: Clan, level): Room => {
-    const altClans = enumKeys(Clan).filter(k => k!= c)
+    const alt = enumKeys(Clan).filter(k => k!= c)
 
     // Assign roles based on level for even distribution
     return {
-      clan: altClans[randomInt(0,altClans.length-1)]
+      clan: alt[randomInt(0,alt.length-1)]
       , role:level%4}
   }
 
 
   const setupNextLevel = (state: State): State => {
     const room = nextRoom(state.room.clan, state.level)
-    const drones = getDrones(1+floor(state.level*1.5))
+    const drones = getDrones(1+floor(state.level*1.5), [], state.player)
     return _({drones, room, pickups: []}, state)
   }
 
 
   const setupDrops = (state: State): State => {  
-    const element = createMusicDrop(
+    const element = createDrop(
       { name: 'element'
-      , x: canvasWidth / 2
-      , y: canvasHeight / 2
+      , x: cw / 2
+      , y: ch / 2
       , clan: state.room.clan
       , role: state.room.role
       })
@@ -1125,10 +1124,10 @@ function game() {
 
 
   const playback: Setup = (state, tick, config) => {
-    const {canvasWidth, canvasHeight} = config
+    const {cw, ch} = config
     const canvas = document.createElement('canvas')
-    canvas.width = canvasWidth
-    canvas.height = canvasHeight
+    canvas.width = cw
+    canvas.height = ch
     let ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
     document.body.appendChild(canvas)
     
@@ -1139,31 +1138,39 @@ function game() {
       ctx.closePath()
     }
 
-    const tree = Quadtree({x: 0, y: 0, width: canvasWidth, height: canvasHeight }, 3, 4);
+    const tree = Quadtree({x: 0, y: 0, width: cw, height: ch }, 3, 4);
     tick(0, state, scene, tree)
   }
 
 
   const openingScene = (time, state, ill) => {
     const clans = enumKeys(Clan)
-    const containerWidth = canvasWidth*2/3
-    const offsetWall = canvasWidth/3
-    const offsetCeiling = canvasHeight/3
-    const elWidth = containerWidth/clans.length
-
+    const width = cw*2/3
+    const offsetWall = cw/3
+    const offsetCeiling = ch/3
 
     state.drops.forEach((unit, i) => {
-      ill((ctx) => {
-        const attrs =clanAttributes[i]
-        const rAttrs =roleAttributes[i]
-        ctx.fillStyle = ctx.strokeStyle =  toColor(attrs.rgb,rAttrs[i])
-        ctx.arc(unit.x, unit.y, unit.radius, 0, 2 * Math.PI)
-        ctx.fill()
-        ctx.stroke()
-      })
+      for(let j =0;j<3;j++) {
+        ill((ctx) => {
+          const attrs =clanAttributes[i]
+          const rAttrs =roleAttributes[i]
+          ctx.fillStyle = ctx.strokeStyle =  toColor(attrs.rgb)
+          ctx.arc(unit.x, (scale(time) / (j+2)) + unit.y, unit.radius, time + j/PI, time + (i* PI/4) + PI/4)
+          ctx.fill()
+          ctx.stroke()
+        })
+      }
     })
 
     ill(drawPlayer(time, state))
+    ill((ctx) => {
+      ctx.font = '25px sans-serif';
+      ([`Use the arrow keys to move`
+       , `Choose your Bassline`
+       , `Press F to fire`
+       , `Daze the drones to collect their essence`
+       , `Assemble all 4 parts to find your track!`]).reduce((y,t) =>(ctx.fillText(t,50, ch-y), (y-50)), 250)
+    })
   }
 
   playback(state, loop, config)
