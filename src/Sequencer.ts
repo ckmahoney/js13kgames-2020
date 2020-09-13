@@ -266,14 +266,14 @@ export const partBass = (when, tempo, melody: Note[]) => {
 export const partHat = (when, tempo, melody: Note[]) => {
   const seq = new Sequence(tempo, melody);
   seq.staccato = 0.55;
-  seq.gain.gain.value = -10.0;
+  seq.gain.gain.value = -20.0;
   seq.bass.frequency.value = 6000;
   seq.mid.frequency.value = 10000;
   seq.mid.gain.value = 3;
   seq.hp.frequency.value = 22000
   seq.shape = 'square'
   seq.role = 'hat'
-  seq.hp.frequency.value = 16000
+  seq.hp.frequency.value = 19000
   seq.lp.frequency.value = 22000
 
 

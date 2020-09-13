@@ -278,18 +278,18 @@ const Presets =
       }
     }
   , [Clan.Blue]: 
-    { tonic: 80
-    , bpm: 93.333
+    { tonic: (88*4/3)
+    , bpm: 10.5
     , voices: 
-      { [Role.kick]: [0, 1, 3, 0]
+      { [Role.kick]: [0, 0, NaN, NaN, 0, NaN, 0, NaN]
       , [Role.tenor]: [4, 4, 2, 4]
       , [Role.alto]: [7, 4, 7, NaN]
       , [Role.hat]: [12, NaN, NaN, 0]
       }
     }
   , [Clan.Red]: 
-    { tonic: 52
-    , bpm: 93.333
+    { tonic: (88* 5/4)
+    , bpm: 140
     , voices: 
       // { [Role.kick]: [7, NaN, NaN, 0]
       { [Role.kick]: [0, NaN, NaN, 0]
@@ -387,7 +387,6 @@ const Presets =
         return assign({drones, ensemble,pickups},state)
     } 
     , element(state: State, touches) {
-      log(`doing element`)
         if (state.level == 0 && touches.length > 1) {
           // prevent multiple collisions when there are 3 nodes
           return state
@@ -410,11 +409,13 @@ const Presets =
         return state;
       }
     , pickup(state, touches) {
+        // picks up one at a time
         const ids = touches.map(pickup => pickup.objectID)
+        log(`touched these pickups`, ids)
         const pickups = state.pickups.filter(pickup =>
           !ids.includes(pickup.objectID))
 
-        const ensemble = addToEnsemble(state.ensemble, state.room.clan, state.room.role, 1)
+        const ensemble = addToEnsemble(state.ensemble, state.ensemble.clan, state.room.role, 1)
         return assign({ensemble, pickups}, state)
       }
     }
@@ -670,6 +671,7 @@ const updateTreeIndices = <Tree>(time, state: State, tree: Tree): Tree => {
     [ state.player
     , ...state.drones
     , ...state.drops
+    , ...state.pickups
     , ...state.shots]).reduce(applyToTree, tree)
 }
 
@@ -740,7 +742,7 @@ const shortening = x => {
 
 
 const tenuto = x => 
-  0.85
+  (x%2==1) ? 0.85 : 0.5
 
 
 const sostenuto = x => 
@@ -765,7 +767,7 @@ function game() {
       { [Role.kick]: <SoundSource>{ volume: 1 }
       , [Role.tenor]: <SoundSource>{ volume: 1 }
       , [Role.alto]: <SoundSource>{ volume: 1 }
-      , [Role.hat]: <SoundSource>{ volume: 1 }
+      , [Role.hat]: <SoundSource>{ volume: 6 }
       }
     , drones: []
     , shots: []
@@ -818,19 +820,13 @@ function game() {
 
   const updateSound = (state: State, ctx: AudioContext): SideFX => {
     const { ensemble } = state
-
-    // if ( state.level == 0 ) {
-    //   playMusicEnsemble(ctx.currentTime, Songs.opening)
-    // } else {
-      playMusicEnsemble(ctx.currentTime, state.ensemble)
-    // }
-    
+    playMusicEnsemble(ctx.currentTime, state.ensemble)
   }
 
 
   const isPlayerDead = ensemble => 
     // @ts-ignore
-    Object.values(ensemble).some(part => part.volume == 0)
+    Object.values(ensemble).some(part => part.volume < 1)
 
 
   const isEnsembleComplete = ensemble => 
@@ -1199,7 +1195,7 @@ function game() {
   const setupNextLevel = (state: State): State => {
     const room = nextRoom(state.room.clan, state.room.role,state.level)
     const drones = getDrones(state.level * 5)
-    return assign({drones, room}, state)
+    return assign({drones, room, pickups: []}, state)
   }
 
 
@@ -1228,30 +1224,23 @@ function game() {
       alert('you are winning!')
     }
 
-    log(`has pickups`, next.pickups)
 
     if (next.shots.length > 0 && next.drones.length > 0) {
-      // shoot at the drones, remove the hits
+      // shoot at the drones
       let drones = next.shots.reduce((drones, shot,i) => {
         const collisions = tree.retrieve(shot).filter((unit) => collides(unit, shot))
         return drones.filter(drone => !collisions.includes(drone))
-
       }, next.drones)
 
-      let pickups = next.shots.reduce((pickups, shot,i) => {
-        const collisions = tree.retrieve(shot).filter((unit) => collides(unit, shot))
-        if (collides(shot, next.player)) {
-          return pickups
-        }
+      let hits = next.drones.filter(d => !drones.includes(d))
 
-        return pickups.concat(collisions.map(drone => createPickup(drone)))
-      }, next.pickups)
+      // replace a hit with a pickup
+      let pickups = hits.reduce((pickups, drone,i) => 
+        pickups.concat(createPickup(drone))
+      , next.pickups)
 
       // next = applyShotCollisions(next, tree)
       next = assign({drones, pickups}, next);
-    }
-    if(next.shots.length>0){
-      log(next.pickups)
     }
 
 
