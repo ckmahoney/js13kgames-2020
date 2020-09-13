@@ -4,10 +4,10 @@ const { abs, sin, cos, pow, sqrt, floor, ceil, random, PI, max, min } = Math
 
 
 enum Role 
-  { bass
+  { kick
   , tenor
   , alto
-  , soprano
+  , hat
   }
 
 
@@ -113,10 +113,10 @@ type HeterogenousEnsemble =
 
 
 type Ensemble = 
-  { [Role.bass]: SoundSource
+  { [Role.kick]: SoundSource
   , [Role.tenor]: SoundSource
   , [Role.alto]: SoundSource
-  , [Role.soprano]: SoundSource
+  , [Role.hat]: SoundSource
   }
 
 
@@ -238,25 +238,30 @@ const clanAttributes =
 
 
 const roleAttributes = 
-  { [Role.bass]:
+  { [Role.kick]:
     { colorMod(n, time) 
       { return n == 255 ? 50: n }
     , text: '#' 
+    , rgb: [155, 50, 0]
     }
   , [Role.tenor]:
     { colorMod(n, time) 
       { return n == 255 ? 100: n }
     , text: '\\-'
+    , rgb: [155, 250, 0]
     }
   , [Role.alto]:
     { colorMod(n, time) 
       { return n == 255 ? 175: n }
     , text: '=/'
+    , rgb: [0, 150, 50]
     }
-  , [Role.soprano]:
+  , [Role.hat]:
     { colorMod(n, time) 
       { return 255 }
-    , text: '@' }
+    , text: '@' 
+    , rgb: [0, 150, 255]
+    }
   }
 
 const Presets = 
@@ -264,32 +269,32 @@ const Presets =
     { tonic: 88
     , bpm: 70
     , voices:
-      { [Role.bass]: [0, 5, 0, 7]
-      // { [Role.bass]: [0, 0, 0, 0]
+      { [Role.kick]: [0, 5, 0, 7]
+      // { [Role.kick]: [0, 0, 0, 0]
       , [Role.tenor]: [0, 5, NaN, 5]
       , [Role.alto]: [7, 2, NaN]
-      , [Role.soprano]: [12, 4, NaN, 12, 7, NaN, 4, 7]
+      , [Role.hat]: [12, 4, NaN, 12, 7, NaN, 4, 7]
       }
     }
   , [Clan.Blue]: 
     { tonic: 80
     , bpm: 93.333
     , voices: 
-      { [Role.bass]: [0, 1, 3, 0]
+      { [Role.kick]: [0, 1, 3, 0]
       , [Role.tenor]: [4, 4, 2, 4]
       , [Role.alto]: [7, 4, 7, NaN]
-      , [Role.soprano]: [12, NaN, NaN, 0]
+      , [Role.hat]: [12, NaN, NaN, 0]
       }
     }
   , [Clan.Red]: 
     { tonic: 52
     , bpm: 93.333
     , voices: 
-      // { [Role.bass]: [7, NaN, NaN, 0]
-      { [Role.bass]: [0, NaN, NaN, 0]
+      // { [Role.kick]: [7, NaN, NaN, 0]
+      { [Role.kick]: [0, NaN, NaN, 0]
       , [Role.tenor]: [4, 4, 2, 4]
       , [Role.alto]: [7, 4, 7, NaN]
-      , [Role.soprano]: [12, NaN, NaN, 0]
+      , [Role.hat]: [12, NaN, NaN, 0]
       }
     }
   
@@ -301,10 +306,10 @@ const Presets =
       { tonic: 84
       , bpm: 132
       , voices:
-        { [Role.bass]: [0, NaN, 0, 3, 0, NaN, 0, 4,0,NaN,0,7,9,5,7,2]
+        { [Role.kick]: [0, NaN, 0, 3, 0, NaN, 0, 4,0,NaN,0,7,9,5,7,2]
         , [Role.tenor]: [3,3,3,3,4,4,4,4,7,7,7,7,10,10,10,10]
         , [Role.alto]: [NaN,5,NaN,5,NaN,7,NaN,7,NaN,2,NaN,2,NaN,5,NaN,5]
-        , [Role.soprano]: [10, NaN, NaN, NaN, 11, NaN, NaN, NaN, NaN,  11, NaN, NaN, NaN, NaN,  10, NaN, NaN, NaN, NaN, ]
+        , [Role.hat]: [10, NaN, NaN, NaN, 11, NaN, NaN, NaN, NaN,  11, NaN, NaN, NaN, NaN,  10, NaN, NaN, NaN, NaN, ]
         }
       }
     }
@@ -348,7 +353,7 @@ const Presets =
   const applyDroneDamage = (role, ensemble): Ensemble => {
     const next = {...ensemble}
     const mirrors = 
-      [ [Role.bass, Role.soprano ]
+      [ [Role.kick, Role.hat ]
       , [Role.tenor, Role.alto] ]
     
     let dmg = 0
@@ -388,7 +393,7 @@ const Presets =
         const element = touches[0]
         const room = 
           { clan: element.clan
-          , role: (state.level == 0) ? Role.bass : element.role }
+          , role: (state.level == 0) ? Role.kick : element.role }
         const ensemble = addToEnsemble(state.ensemble, room.clan, room.role)
 
 
@@ -562,7 +567,7 @@ const createOpeningMusicDrops = (qty = 3) => {
   for (let i = 0; i < 3; i++) {
     const x = offsetWall + (i*elWidth)
     const y = offsetCeiling 
-    drops.push(createMusicDrop({x, y, role: Role.bass, clan: Clan[Clan[i]]}))
+    drops.push(createMusicDrop({x, y, role: Role.kick, clan: Clan[Clan[i]]}))
   }
   return drops
 }
@@ -581,7 +586,6 @@ const createMusicDrop = (opts = {}) =>
     , name: 'element'
     , objectID: objectID()
     })
-}
 
 
 const motionControls = () => (
@@ -690,10 +694,10 @@ const addToEnsemble = (ensemble: Ensemble, clan: Clan, key: Role, amt = 2): Ense
 
 function getSynth(role: Role): Synth {
   const roles = 
-    { [Role.bass]: partKick
+    { [Role.kick]: partKick
     , [Role.tenor]: partHarmony
     , [Role.alto]: partLead
-    , [Role.soprano]: partHat
+    , [Role.hat]: partHat
     }
     return (roles[role] || partHarmony)
 }
@@ -726,10 +730,10 @@ const sostenuto = x =>
 
 const getDuration = (role: Role) => {
   const roles = 
-    { [Role.bass]: choppy
+    { [Role.kick]: choppy
     , [Role.tenor]: tenuto
     , [Role.alto]: shortening
-    , [Role.soprano]: sostenuto
+    , [Role.hat]: sostenuto
     }
     return (roles[role] || tenuto)
 }
@@ -739,15 +743,15 @@ function game() {
   const state: State = 
     { player: createPlayer()
     , ensemble:
-      { [Role.bass]: <SoundSource>{ volume: 1 }
+      { [Role.kick]: <SoundSource>{ volume: 1 }
       , [Role.tenor]: <SoundSource>{ volume: 1 }
       , [Role.alto]: <SoundSource>{ volume: 1 }
-      , [Role.soprano]: <SoundSource>{ volume: 1 }
+      , [Role.hat]: <SoundSource>{ volume: 1 }
       }
     , drones: []
     , shots: []
     , drops: createOpeningMusicDrops()
-    , room: <Room><unknown>{ clan: null, role: Role.bass }
+    , room: <Room><unknown>{ clan: null, role: Role.kick }
     , level: 0
     }
 
@@ -812,9 +816,11 @@ function game() {
   const drawNPCS: StatefulDraw = (time, state): Draw => {
     const cAttrs = clanAttributes[state.room.clan]
     const rAttrs = roleAttributes[state.room.role]
+
     // use measuretext here because it depends on the ctx
     // it is a sidefx that should go in applyMotion instead
     return (ctx) => {
+      ctx.font = '50px monospace'
       state.drones.forEach( (drone,i) => {
         const {x,y} = drone
         const text = rAttrs.text
@@ -858,12 +864,63 @@ function game() {
   }
 
 
+  const drawUI= (time, state, illustrate) => {
+    const uiW = 300
+    const uiH = 200
+    const orbR = 10
+    const m = (min(uiW, uiH) - 50) / 4
+    const qty = 4
+    const max = 10
+    
+    // background
+    illustrate((ctx) => {
+      ctx.font = '15px sans-serif'
+      ctx.lineWidth = 10
+      ctx.strokeStyle = 'black'
+      ctx.fillStyle = 'rgba(255,255,255,0.3)'
+      ctx.fillRect(15, 15, uiW, uiH)
+      ctx.strokeRect(15, 15, uiW, uiH)
+    })
+
+    // progress orbs
+    Object.values(state.ensemble).forEach((part, j) => {
+      //@ts-ignore
+      let progress = ceil(part.volume*qty/max)- 1
+      log(progress)
+      for (let i =0; i<4; i++) {
+        illustrate((ctx) => {
+          ctx.lineWidth = 2
+          const name = Role[j]
+          const metrics = ctx.measureText(name)
+          let y = m + (orbR * 4 * j) + orbR/2
+
+            let x = 50 + (2 * orbR) + (orbR * 2* i)
+            if (i == 0) {
+              ctx.lineWidth = 1
+              ctx.strokeStyle = 'white'
+              ctx.fillText(name, 50, y)
+            }
+            
+            ctx.arc(100 + x, y, orbR, 0, PI*2)
+            ctx.strokeStyle = 'white'
+            ctx.stroke()
+            if (progress >= i) {
+              ctx.fillStyle = toColor(roleAttributes[j].rgb)
+              ctx.fill()
+            }
+        })
+      }
+    }
+  }
+
+
   const drawPlayer: StatefulDraw = (time, state): Draw => {
     const mainColor = 'white'
     const accent = 'black'
     const text = '!*!' || '?*?'
 
     return (ctx) => {
+      ctx.font = '50px monospace'
       const metrics = ctx.measureText(text)
       state.player.height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
       state.player.width = metrics.width
@@ -914,8 +971,8 @@ function game() {
 
 
   const drawTiles3 = (time, ctx): SideFX => {
-    let tw = downScale(time) % 100 + 30
-    let th = downScale(time) % 120 + 10
+    let tw = downScale(time,7) % 100 + 30
+    let th = downScale(time,7) % 120 + 10
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
 
@@ -932,8 +989,8 @@ function game() {
 
 
   const drawTiles4 = (time, ctx): SideFX => {
-    let tw = downScale(time, 2) % 200
-    let th = downScale(time, 2) % 100
+    let tw = downScale(time, 5) % 200
+    let th = downScale(time, 5) % 100
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
 
@@ -1028,6 +1085,7 @@ function game() {
     if (state.level == 0) {
       openingScene(time, state, illustrate)
       illustrate( drawShots( time, state) )
+      drawUI( time, state, illustrate )
       return
     }
 
@@ -1036,6 +1094,7 @@ function game() {
     } else {
       swarmScene(time, state, illustrate)
     }
+    drawUI(time, state, illustrate)
   }
 
 
@@ -1084,7 +1143,7 @@ function game() {
 
     // do hats after kick
     if ( level == 1) {
-      return {clan, role: Role.soprano}
+      return {clan, role: Role.hat}
     }
 
     // Assign roles based on level for even distribution
@@ -1156,7 +1215,6 @@ function game() {
     canvas.width = canvasWidth
     canvas.height = canvasHeight
     const ctx = <CanvasRenderingContext2D> canvas.getContext('2d')
-    ctx.font = '50px monospace'
     document.body.appendChild(canvas)
     
     const scene: Illustrate = (draw: Draw): SideFX  => {
