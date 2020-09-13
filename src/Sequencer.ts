@@ -36,7 +36,6 @@ function Note( freq, duration ) {
 
 
 export function Sequence( tempo, notes: Note[] = []) {
-  console.log(`starting new sequence with tempo, notes`, tempo, notes)
   this.ac = ac;
   this.createFxNodes();
   this.fx = [];
@@ -155,7 +154,6 @@ Sequence.prototype.slide = function( index, when, cutoff ) {
 
 Sequence.prototype.setFrequency = function( freq, when ) {
   if (this.osc instanceof AudioBufferSourceNode) {
-    console.log('setting frequency on the node i guess? maybe')
   }
 
   if (this.osc instanceof OscillatorNode) {
@@ -177,7 +175,6 @@ Sequence.prototype.play = function( when ) {
 
   this.createOscillator();
   this.osc.start( when+1 );
-console.log(`starting ${this.role}`)
   this.notes.forEach(function( note, i ) {
     when = this.scheduleNote( i, when );
   }.bind( this ));

@@ -328,9 +328,8 @@ const Presets =
    * Since the spread operator is compiled to `Object.assign()`, 
    * this lets us name our own copy of the method. 
    */
-  const assign = (params, defaults = {}) => {
-    return Object.assign(defaults, params)
-  }
+  const assign = (params, defaults = {}) => 
+    Object.assign({}, defaults, params)
 
 
   const collides = (unit, obj): Boolean => {
@@ -385,18 +384,23 @@ const Presets =
           return state
         }
 
+
         const element = touches[0]
         const room = 
           { clan: element.clan
           , role: (state.level == 0) ? Role.bass : element.role }
         const ensemble = addToEnsemble(state.ensemble, room.clan, room.role)
 
-        return (
-          { ...state
-            , ensemble
-            , room
-            , drops: []
-            , level: state.level + 1} ) }
+
+        return assign(
+          { ensemble
+          , room
+          , drops: []
+          , level: state.level + 1}, state) }
+    , shot(state, touches) {
+        //shot doesn't do anything to the player
+        return state;
+      }
     }
 
 
@@ -564,8 +568,8 @@ const createOpeningMusicDrops = (qty = 3) => {
 }
 
 
-const createMusicDrop = (opts = {}) => {
-  return (
+const createMusicDrop = (opts = {}) => 
+  assign(opts,
     { clan: ''
     , x: 0
     , y: 0
@@ -910,15 +914,15 @@ function game() {
 
 
   const drawTiles3 = (time, ctx): SideFX => {
-    let tw = time % 100 + 30
-    let th = time % 120 + 10
+    let tw = downScale(time) % 100 + 30
+    let th = downScale(time) % 120 + 10
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
 
     for (let i=0;i<nx;i++) {
-      let r = (i *downScale(time, 1 +time%5)) % 255
+      let r = downScale(time, i) % 255
       for (let j=0;j<ny;j++) {
-        let g = (j *downScale(time, time%2)) % 255
+        let g = downScale(time, i) % 255
         let b = useMod(i+j,time,state)
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
@@ -928,15 +932,15 @@ function game() {
 
 
   const drawTiles4 = (time, ctx): SideFX => {
-    let tw = time % 200
-    let th = time % 100
+    let tw = downScale(time, 2) % 200
+    let th = downScale(time, 2) % 100
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
 
     for (let i=0;i<nx;i++) {
-      let r = (i *downScale(time, 1 +time%5)) % 255
+      let r = (i *downScale(time, i)) % 255
       for (let j=0;j<ny;j++) {
-        let g = (j *downScale(time, time%2)) % 255
+        let g = (j *downScale(time, j)) % 255
         let b = useMod(i+j,time,state)
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
@@ -1062,10 +1066,9 @@ function game() {
 
   const applyPlayerCollisions = (state, tree): State => {
     const hits = tree.retrieve(state.player).filter((unit) => collides(unit, state.player))
-    const next = hits.reduce((next, collider) => 
-      assign(touchHandlers[collider.name], next)
+    const next = hits.reduce((next, collider, i, collisions) => 
+      assign(touchHandlers[collider.name](state, collisions), next)
     , state)
-    log(`has next wit hits`, next)
     return next
   }
  
@@ -1092,12 +1095,11 @@ function game() {
   const setupNextLevel = (state: State): State => {
     const room = nextRoom(state.room.clan, state.room.role,state.level)
     const drones = getDrones(state.level * 2)
-    return {...state, drones, room}
+    return assign({drones, room}, state)
   }
 
 
   const setupDrops = (state: State): State => {  
-    // const unit = f({x, y, width: radius, height: radius, clan: Clan[i]})
     const element = createMusicDrop(
       { name: 'element'
       , x: canvasWidth / 2
@@ -1105,7 +1107,7 @@ function game() {
       , clan: state.room.clan
       , role: state.room.role
       })
-    return {...state, drops: [element]}
+    return assign({drops: [element]}, state)
   }
 
   const loop: HandleTick = (time, prev: State, draw, tree) => {
