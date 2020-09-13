@@ -119,13 +119,19 @@ Sequence.prototype.scheduleNote = function( index, when ) {
   const duration = 60 / this.tempo * this.notes[ index ][1],
     cutoff = duration * ( 1 - ( this.staccato || 0 ) );
 
-  this.setFrequency( this.notes[ index ][0], when );
+  
 
+  this.setFrequency( this.notes[ index ][0], when );
+  
   if ( this.smoothing && this.notes[ index ][0] ) {
     this.slide( index, when, cutoff );
   }
 
-  this.setFrequency( 0, when + cutoff );
+  if (this.role == 'kick') {
+    this.osc.frequency.exponentialRampToValueAtTime(1, when + cutoff)
+  } else {
+    this.setFrequency( 0, when + cutoff );
+  }
   return when + duration;
 };
 
@@ -267,7 +273,8 @@ export const partHat = (when, tempo, melody: Note[]) => {
   seq.hp.frequency.value = 22000
   seq.shape = 'square'
   seq.role = 'hat'
-  seq.hp.frequency.value = 1200
+  seq.hp.frequency.value = 16000
+  seq.lp.frequency.value = 22000
 
 
   return function play() {

@@ -50,6 +50,7 @@ type State =
   , drones: Drone[]
   , drops: any[]
   , shots: Shot[]
+  , pickups: Shot[]
   , room: Room
   , level: number
   , ensemble: Ensemble
@@ -381,22 +382,24 @@ const Presets =
         const drones = state.drones.filter(drone => 
           !defenderIDs.includes(drone.objectID))
 
-        return assign({drones, ensemble},state)
+        const pickups = state.pickups.concat(touches.map(drone => createPickup(drone)))
+
+        return assign({drones, ensemble,pickups},state)
     } 
     , element(state: State, touches) {
+      log(`doing element`)
         if (state.level == 0 && touches.length > 1) {
           // prevent multiple collisions when there are 3 nodes
           return state
         }
 
-
         const element = touches[0]
         const room = 
           { clan: element.clan
           , role: (state.level == 0) ? Role.kick : element.role }
+
+          // sidefx
         const ensemble = addToEnsemble(state.ensemble, room.clan, room.role)
-
-
         return assign(
           { ensemble
           , room
@@ -405,6 +408,14 @@ const Presets =
     , shot(state, touches) {
         //shot doesn't do anything to the player
         return state;
+      }
+    , pickup(state, touches) {
+        const ids = touches.map(pickup => pickup.objectID)
+        const pickups = state.pickups.filter(pickup =>
+          !ids.includes(pickup.objectID))
+
+        const ensemble = addToEnsemble(state.ensemble, state.room.clan, state.room.role, 1)
+        return assign({ensemble, pickups}, state)
       }
     }
 
@@ -557,6 +568,13 @@ const createDrone = (defaults = {}): Drone => {
 }
 
 
+const createPickup = (defaults = {}) => 
+  assign(
+    { objectID: objectID()
+    , name: 'pickup'
+    }, defaults)
+
+
 const createOpeningMusicDrops = (qty = 3) => {
   const drops = []
   const containerWidth = canvasWidth*2/qty
@@ -638,6 +656,7 @@ const applyPositions = (time, state: State): State =>
     , drops: state.drops.map((u) => updateRadial(u, time))
     , drones: state.drones.map(walk)
     }, state)
+
 
 const applyToTree = (tree: QTInterface, u): QTInterface => {
   tree.insert(u)
@@ -732,8 +751,8 @@ const getDuration = (role: Role) => {
   const roles = 
     { [Role.kick]: choppy
     , [Role.tenor]: tenuto
-    , [Role.alto]: shortening
-    , [Role.hat]: sostenuto
+    , [Role.alto]: sostenuto
+    , [Role.hat]: shortening
     }
     return (roles[role] || tenuto)
 }
@@ -750,6 +769,7 @@ function game() {
       }
     , drones: []
     , shots: []
+    , pickups: []
     , drops: createOpeningMusicDrops()
     , room: <Room><unknown>{ clan: null, role: Role.kick }
     , level: 0
@@ -809,8 +829,13 @@ function game() {
 
 
   const isPlayerDead = ensemble => 
-  // @ts-ignore
+    // @ts-ignore
     Object.values(ensemble).some(part => part.volume == 0)
+
+
+  const isEnsembleComplete = ensemble => 
+    // @ts-ignore
+    Object.values(ensemble).every(part => part.volume >= 5)
 
 
   const drawNPCS: StatefulDraw = (time, state): Draw => {
@@ -831,6 +856,26 @@ function game() {
       } )
     }
   }
+
+
+  const drawPickups: StatefulDraw = (time, state): Draw => {
+    const cAttrs = clanAttributes[state.room.clan]
+    const rAttrs = roleAttributes[state.room.role]
+
+    // use measuretext here because it depends on the ctx
+    // it is a sidefx that should go in applyMotion instead
+    return (ctx) => {
+      ctx.font = '50px monospace'
+       state.pickups.forEach( (pickup, i) => {
+        const {x,y} = pickup
+        ctx.fillStyle = 'white'
+        ctx.fillRect(x, y, droneWidth, droneHeight)
+      })
+    }
+  }
+
+
+ 
 
 
   const drawShots: StatefulDraw = (time, state): Draw => {
@@ -886,7 +931,6 @@ function game() {
     Object.values(state.ensemble).forEach((part, j) => {
       //@ts-ignore
       let progress = ceil(part.volume*qty/max)- 1
-      log(progress)
       for (let i =0; i<4; i++) {
         illustrate((ctx) => {
           ctx.lineWidth = 2
@@ -910,7 +954,7 @@ function game() {
             }
         })
       }
-    }
+    })
   }
 
 
@@ -971,15 +1015,15 @@ function game() {
 
 
   const drawTiles3 = (time, ctx): SideFX => {
-    let tw = downScale(time,7) % 100 + 30
-    let th = downScale(time,7) % 120 + 10
+    let tw = 100 + 30
+    let th = 120 + 10
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
 
     for (let i=0;i<nx;i++) {
-      let r = downScale(time, i) % 255
+      let r = useMod(3,time,state) % 255
       for (let j=0;j<ny;j++) {
-        let g = downScale(time, i) % 255
+        let g = 0
         let b = useMod(i+j,time,state)
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
@@ -989,15 +1033,15 @@ function game() {
 
 
   const drawTiles4 = (time, ctx): SideFX => {
-    let tw = downScale(time, 5) % 200
-    let th = downScale(time, 5) % 100
+    let tw =  200
+    let th =  100
     let nx = canvasWidth / tw
     let ny = canvasHeight / th
 
     for (let i=0;i<nx;i++) {
-      let r = (i *downScale(time, i)) % 255
+      let r = useMod(1,time,state) % 255
       for (let j=0;j<ny;j++) {
-        let g = (j *downScale(time, j)) % 255
+        let g = 100
         let b = useMod(i+j,time,state)
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
         ctx.fillRect(i*tw -i, j*th -j, i*tw + tw, j*tw+tw)
@@ -1100,8 +1144,9 @@ function game() {
 
   const swarmScene = (time, state, illustrate) => {
     illustrate( drawRoom(time, state) )
-    illustrate( drawNPCS(time, state) )
-    illustrate( drawShots(time, state))
+    state.drones.length > 0 && illustrate( drawNPCS(time, state) )
+    state.pickups.length > 0 && illustrate( drawPickups(time,state))
+    state.shots.length > 0 && illustrate( drawShots(time, state))
     illustrate( drawPlayer(time, state) )
   }
 
@@ -1153,7 +1198,7 @@ function game() {
 
   const setupNextLevel = (state: State): State => {
     const room = nextRoom(state.room.clan, state.room.role,state.level)
-    const drones = getDrones(state.level * 2)
+    const drones = getDrones(state.level * 5)
     return assign({drones, room}, state)
   }
 
@@ -1179,15 +1224,34 @@ function game() {
 
     next = applyPlayerCollisions(next, tree)
 
+    if (isEnsembleComplete(next.ensemble)) {
+      alert('you are winning!')
+    }
+
+    log(`has pickups`, next.pickups)
+
     if (next.shots.length > 0 && next.drones.length > 0) {
       // shoot at the drones, remove the hits
       let drones = next.shots.reduce((drones, shot,i) => {
         const collisions = tree.retrieve(shot).filter((unit) => collides(unit, shot))
         return drones.filter(drone => !collisions.includes(drone))
+
       }, next.drones)
 
+      let pickups = next.shots.reduce((pickups, shot,i) => {
+        const collisions = tree.retrieve(shot).filter((unit) => collides(unit, shot))
+        if (collides(shot, next.player)) {
+          return pickups
+        }
+
+        return pickups.concat(collisions.map(drone => createPickup(drone)))
+      }, next.pickups)
+
       // next = applyShotCollisions(next, tree)
-      next = {...next, drones};
+      next = assign({drones, pickups}, next);
+    }
+    if(next.shots.length>0){
+      log(next.pickups)
     }
 
 
