@@ -46,14 +46,14 @@ type Shot =
 
 
 type State = 
-  { player: Player
-  , drones: Drone[]
+  { pp: Player
+  , dd: Drone[]
   , drops: any[]
-  , shots: Shot[]
-  , pickups: Shot[]
+  , ss: Shot[]
+  , pu: Shot[]
   , room: Room
   , level: number
-  , ensemble: Ensemble
+  , ee: Ensemble
   }
 
 
@@ -94,7 +94,7 @@ type Drone =
 
 
 type Voice = 
-  { bpm?: number
+  { bpm: number
   , tonic?: number
   , melody?: number[] // intervals
   , notes?: number[][] // [freq, duration] point in soundspace
@@ -270,27 +270,27 @@ const Presets =
     { tonic: 88
     , bpm: 70
     , voices:
-      { [Role.kick]: [0, 5, 0, 7]
+      {  [Role.kick]: [7, 1, 12, 5]
       , [Role.tenor]: [4, 7, 2, 5]
       , [Role.alto]: [12, 4, 0]
       , [Role.hat]: [12, 4, 0, 12, 7, 0, 4, 7]
       }
     }
   , [Clan.B]: 
-    { tonic: (88*4/3)
-    , bpm: 10.5
-    , voices: 
-      { [Role.kick]: [7, 0, 4, 12, 0, 0, 0, 12]
+    { tonic: 108
+    , bpm: 90
+    , voices:
+      { [Role.kick]: [7, 1, 12, 5]
       , [Role.tenor]: [4, 0, 4]
       , [Role.alto]: [0, 4, 7]
       , [Role.hat]: [10, 0, 0, 10, 12, 11, 9, 0]
       }
     }
   , [Clan.C]: 
-    { tonic: (88* 5/4)
+    { tonic: 128
     , bpm: 140
-    , voices: 
-      { [Role.kick]: [0, 12, 7, 0]
+    , voices:
+      { [Role.kick]: [7, 1, 12, 5]
       , [Role.tenor]: [12, 4, 7]
       , [Role.alto]: [7, 4, 7, 0]
       , [Role.hat]: [10, 0, 0, 10, 12, 11, 9, 0]
@@ -339,8 +339,8 @@ const Presets =
   }
 
 
-  const applyDroneDamage = (role, ensemble): Ensemble => {
-    const next = {...ensemble}
+  const applyDroneDamage = (role, ee): Ensemble => {
+    const next = {...ee}
     const mirrors = 
       [ [Role.kick, Role.hat ]
       , [Role.tenor, Role.alto] ]
@@ -362,17 +362,17 @@ const Presets =
 
   const touchHandlers = 
     { drone(state: State, touches) {
-        const ensemble = touches.reduce((ensemble, drone) => 
-          applyDroneDamage(state.room.role, state.ensemble), touches)
+        const ee = touches.reduce((ee, drone) => 
+          applyDroneDamage(state.room.role, state.ee), touches)
 
         const defenderIDs = touches.map(drone => drone.objectID)
 
-        const drones = state.drones.filter(drone => 
+        const dd = state.dd.filter(drone => 
           !defenderIDs.includes(drone.objectID))
 
-        const pickups = state.pickups.concat(touches.map(drone => createPickup(drone)))
+        const pu = state.pu.concat(touches.map(drone => createPickup(drone)))
 
-        return _({drones, ensemble,pickups},state)
+        return _({dd, ee,pu},state)
     } 
     , element(state: State, touches) {
         if (touches.length<1) 
@@ -387,22 +387,22 @@ const Presets =
           , role: (state.level == 0) ? Role.kick : touches[0].role }
 
         return _(
-          { ensemble: addToEnsemble(state.ensemble, room.clan, room.role)
+          { ee: addToEnsemble(state.ee, room.clan, room.role)
           , room
           , drops: []
           , level: state.level + 1}, state) }
     , shot(state, touches) {
-        //shot doesn't do anything to the player
+        //shot doesn't do anything to the pp
         return state;
       }
     , pickup(state, touches) {
 
         // picks up one at a time
         const ids = touches.map(pickup => pickup.objectID)
-        const pickups = state.pickups.filter(pickup =>
+        const pu = state.pu.filter(pickup =>
           !ids.includes(pickup.objectID))
-        const ensemble = addToEnsemble(state.ensemble, state.ensemble[state.room.role].clan || state.room.clan, state.room.role, 1)
-        return _({ensemble, pickups}, state)
+        const ee = addToEnsemble(state.ee, state.ee[state.room.role].clan || state.room.clan, state.room.role, 1)
+        return _({ee, pu}, state)
       }
     }
 
@@ -410,8 +410,8 @@ const Presets =
 // settings you can tweak to resize the characters and stages
 const cw = min(1200,window.innerWidth)
 const ch = min(800,window.innerHeight)
-const playerHeight = 80
-const playerWidth = 80
+const ppHeight = 80
+const ppWidth = 80
 const droneWidth = 50
 const droneHeight = 50
 const elementRadius = min(100, cw/6)
@@ -429,7 +429,7 @@ const objectID = () => {
 objectID.prev = 0
 
 
-/* The end of game has been reached, auto-refresh for the player. */
+/* The end of game has been reached, auto-refresh for the pp. */
 const reloadGame = () => {
   window.location.reload()
 }
@@ -486,11 +486,11 @@ const moveLeft = <U extends UnitPosition>(u: U , amt=7): U =>
 
 
 const moveRight = <U extends UnitPosition>(u: U, amt=7): U => 
-  _({x: u.x < (cw - playerWidth) ? u.x += amt : (cw - playerWidth)}, u)
+  _({x: u.x < (cw - ppWidth) ? u.x += amt : (cw - ppWidth)}, u)
 
 
 const moveUp = <U extends UnitPosition>(u: U, amt=7): U  => 
-  _({y: u.y >= (0) ? u.y -= amt : playerHeight}, u)
+  _({y: u.y >= (0) ? u.y -= amt : ppHeight}, u)
 
 
 const moveDown = <U extends UnitPosition>(u: U, amt=7): U  => 
@@ -520,9 +520,9 @@ const createShot = (opts = {}): Shot =>
 
 const createPlayer = (): Player => 
   ({ objectID: objectID()
-    , name: 'player'
-    , width: playerWidth
-    , height: playerHeight
+    , name: 'pp'
+    , width: ppWidth
+    , height: ppHeight
     , x: (cw)/2
     , y: ch / 5
     , volume: 100
@@ -591,21 +591,21 @@ const motionControls = () => (
   })
 
 
-const applyMotion = (player, controlKey): Player => {
+const applyMotion = (pp, controlKey): Player => {
   let map = motionControls()
   if (! (Object.keys(map).includes(controlKey)))
-    return player
+    return pp
 
-  return map[controlKey](player)
+  return map[controlKey](pp)
 }
 
 
 /* Respond to the keydown controls */
 const applyControls = (time, state: State): State => {
-  let shots = state.shots
+  let ss = state.ss
 
   if (game.controls.includes('f')) {
-    shots = shots.concat(createShot({start: (+new Date), x: state.player.x, y: state.player.y, duration: 200}))
+    ss = ss.concat(createShot({start: (+new Date), x: state.pp.x, y: state.pp.y, duration: 200}))
     game.controls = game.controls.filter(k => k!='f')
   }
 
@@ -614,8 +614,8 @@ const applyControls = (time, state: State): State => {
     1 !== (floor((+new Date) / (shot.start + (shot.duration))))
 
   return _(
-    { shots: shots.filter(isInProgress)
-    , player: game.controls.reduce(applyMotion,state.player)
+    { ss: ss.filter(isInProgress)
+    , pp: game.controls.reduce(applyMotion,state.pp)
     }, state)
 }
 
@@ -629,9 +629,9 @@ const updateRadial = (unit, time) => {
 /* Update the x,y,width,height,radius properties of units in state. */
 const applyPositions = (time, state: State): State => 
   _(
-    { shots: state.shots.map((u) => updateRadial(u, +new Date))
+    { ss: state.ss.map((u) => updateRadial(u, +new Date))
     , drops: state.drops.map((u) => updateRadial(u, time))
-    , drones: state.drones.map(walk)
+    , dd: state.dd.map(walk)
     }, state)
 
 
@@ -644,16 +644,16 @@ const applyToTree = (tree: QTInterface, u): QTInterface => {
 /* Global handler for store state updates */
 const updateTreeIndices = <Tree>(time, state: State, tree: Tree): Tree => {
   return (
-    [ state.player
-    , ...state.drones
+    [ state.pp
+    , ...state.dd
     , ...state.drops
-    , ...state.pickups
-    , ...state.shots]).reduce(applyToTree, tree)
+    , ...state.pu
+    , ...state.ss]).reduce(applyToTree, tree)
 }
 
 
-const handleDroneCollisions = (drones: Drone[], tree: QTInterface): any[] => 
-  drones.reduce((collisions, drone) => {
+const handleDroneCollisions = (dd: Drone[], tree: QTInterface): any[] => 
+  dd.reduce((collisions, drone) => {
     const intersections = tree.retrieve(drone).filter((unit) => collides(unit, drone))
     return collisions.concat(intersections)
   }, [])
@@ -661,19 +661,20 @@ const handleDroneCollisions = (drones: Drone[], tree: QTInterface): any[] =>
 
 
 
-const addToEnsemble = (ensemble: Ensemble, clan: Clan, key: Role, amt = 2): Ensemble => {
-  if  (ensemble[key].clan != clan) {
+const addToEnsemble = (ee: Ensemble, clan: Clan, key: Role, amt = 2): Ensemble => {
+  if  (ee[key].clan != clan) {
     const preset = Presets[clan]
     // Swap the previous type with the new one
-    ensemble[key].clan = clan
-    ensemble[key].volume = amt
-    ensemble[key].bpm = preset.bpm
-    ensemble[key].tonic = preset.tonic
-    ensemble[key].melody = preset.voices[key]
+    ee[key].clan = clan
+    ee[key].volume = amt
+    ee[key].bpm = preset.bpm
+    ee[key].tonic = preset.tonic
+    ee[key].melody = preset.voices[key]
   } else {
-    ensemble[key].volume += amt
+    ee[key].volume += amt
   }
-  return ensemble
+  console.log(ee[key].melody)
+  return ee
 }
 
 
@@ -691,7 +692,7 @@ function getSynth(role: Role): Synth {
 const getDuration = (role: Role) => 
   (
     { [Role.kick]: x =>0.5
-    , [Role.tenor]: x =>(x%2==1)? 0.85:05
+    , [Role.tenor]: x =>(x%2==1)? 0.85: 0.05
     , [Role.alto]: x=>0.95
     , [Role.hat]: x =>1/(x+1)
     })[role]
@@ -699,16 +700,16 @@ const getDuration = (role: Role) =>
 function game() {
   const controls: Controls = []
   const state: State = 
-    { player: createPlayer()
-    , ensemble:
+    { pp: createPlayer()
+    , ee:
       { [Role.kick]: <SoundSource>{ volume: 1 }
       , [Role.tenor]: <SoundSource>{ volume: 1 }
       , [Role.alto]: <SoundSource>{ volume: 1 }
       , [Role.hat]: <SoundSource>{ volume: 1 }
       }
-    , drones: []
-    , shots: []
-    , pickups: []
+    , dd: []
+    , ss: []
+    , pu: []
     , drops: startup()
     , room: <Room><unknown>{ clan: null, role: Role.kick }
     , level: 0
@@ -749,14 +750,14 @@ function game() {
   
 
   const updateSound = (state: State, ctx: AudioContext): SideFX => {
-    Object.entries(state.ensemble).forEach(([key, part]) => play(ctx.currentTime, parseInt(key), part))
+    Object.entries(state.ee).forEach(([key, part]) => play(ctx.currentTime, parseInt(key), part))
   }
 
 
 
-  const isComplete = ensemble => 
+  const isComplete = ee => 
     // @ts-ignore
-    Object.values(ensemble).every(part => part.volume >= 6)
+    Object.values(ee).every(part => part.volume >= 6)
 
 
   const drawNPCS: StatefulDraw = (time, state): Draw => {
@@ -767,7 +768,7 @@ function game() {
     // it is a sidefx that should go in applyMotion instead
     return (ctx) => {
       ctx.font = '50px monospace'
-      state.drones.forEach( (drone,i) => {
+      state.dd.forEach( (drone,i) => {
         const {x,y} = drone
         const text = rAttrs.text
         const metrics = ctx.measureText(text)
@@ -783,7 +784,7 @@ function game() {
     // it is a sidefx that should go in applyMotion instead
     return (ctx) => {
       ctx.font = '50px monospace'
-       state.pickups.forEach( (pickup, i) => {
+       state.pu.forEach( (pickup, i) => {
         const {x,y} = pickup
         ctx.fillStyle = 'white'
         ctx.fillRect(x, y, droneWidth, droneHeight)
@@ -793,7 +794,7 @@ function game() {
 
   const drawShots: StatefulDraw = (time, state): Draw => {
     return (ctx) => {
-      state.shots.forEach((shot,i) => {
+      state.ss.forEach((shot,i) => {
         ctx.strokeStyle = toColor([(shot.x+shot.y)%100,shot.x%255,shot.y%200])
         ctx.arc(shot.x, shot.y, shot.radius, 0, 2*PI)
         ctx.lineWidth = (time % 20)
@@ -841,7 +842,7 @@ function game() {
     })
 
     // progress orbs
-    Object.values(state.ensemble).forEach((part, j) => {
+    Object.values(state.ee).forEach((part, j) => {
       //@ts-ignore
       let progress = ceil(part.volume*qty/max)- 1
       for (let i =0; i<4; i++) {
@@ -879,13 +880,13 @@ function game() {
     return (ctx) => {
       ctx.font = '50px monospace'
       const metrics = ctx.measureText(text)
-      state.player.height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
-      state.player.width = metrics.width
+      state.pp.height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+      state.pp.width = metrics.width
       // Must apply width and height using the ctx
       ctx.fillStyle = mainColor
       ctx.strokeStyle = accent
-      ctx.strokeText(text, state.player.x, state.player.y);
-      ctx.fillText(text, state.player.x, state.player.y);
+      ctx.strokeText(text, state.pp.x, state.pp.y);
+      ctx.fillText(text, state.pp.x, state.pp.y);
     }
   }
 
@@ -951,15 +952,15 @@ function game() {
   }
 
 
-  const getDrones = (qty = 4, drones: Drone[] = [], player: Player): Drone[] => {
+  const getDrones = (qty = 4, dd: Drone[] = [], pp: Player): Drone[] => {
     if ( qty === 0 ) 
-      return drones
+      return dd
 
     let drone = createDrone()
     // prevent collision on spawn
-    return collides(drone, player)
-      ? getDrones(qty, drones, player)
-      : getDrones(qty-1, drones.concat(drone), player)
+    return collides(drone, pp)
+      ? getDrones(qty, dd, pp)
+      : getDrones(qty-1, dd.concat(drone), pp)
   }
 
 
@@ -1008,7 +1009,7 @@ function game() {
 
 
   const applyPlayerCollisions = (state, tree): State => {
-    const hits = tree.retrieve(state.player).filter((unit) => collides(unit, state.player))
+    const hits = tree.retrieve(state.pp).filter((unit) => collides(unit, state.pp))
     const next = hits.reduce((next, collider, i, collisions) => 
       _(touchHandlers[collider.name](state, collisions), next)
     , state)
@@ -1033,8 +1034,8 @@ function game() {
 
   const setupNextLevel = (state: State): State => {
     const room = nextRoom(state.room.clan, state.level)
-    const drones = getDrones(1+floor(state.level*1.5), [], state.player)
-    return _({drones, room, pickups: []}, state)
+    const dd = getDrones(1+floor(state.level*1.5), [], state.pp)
+    return _({dd, room, pu: []}, state)
   }
 
 
@@ -1055,43 +1056,43 @@ function game() {
     let next = applyControls(time, prev)
     next = applyPositions(time, next)
     tree = updateTreeIndices(time, next, tree)
-    updateSound(next, audioContext)
 
     next = applyPlayerCollisions(next, tree)
 
 
-    if (isComplete(next.ensemble)) {
+    if (isComplete(next.ee)) {
       alert('Good job you winner!')
     }
 
 
-    if (next.shots.length > 0 && next.drones.length > 0) {
-      // shoot at the drones
-      let drones = next.shots.reduce((drones, shot,i) => {
+    if (next.ss.length > 0 && next.dd.length > 0) {
+      // shoot at the dd
+      let dd = next.ss.reduce((dd, shot,i) => {
         const collisions = tree.retrieve(shot).filter((unit) => collides(unit, shot))
-        return drones.filter(drone => !collisions.includes(drone))
-      }, next.drones)
+        return dd.filter(drone => !collisions.includes(drone))
+      }, next.dd)
 
-      let hits = next.drones.filter(d => !drones.includes(d))
+      let hits = next.dd.filter(d => !dd.includes(d))
 
       // replace a hit with a pickup
-      let pickups = hits.reduce((pickups, drone,i) => 
-        pickups.concat(createPickup(drone))
-      , next.pickups)
+      let pu = hits.reduce((pu, drone,i) => 
+        pu.concat(createPickup(drone))
+      , next.pu)
 
-      next = _({drones, pickups}, next);
+      next = _({dd, pu}, next);
     }
 
     
-    // player died 
-    if (Object.values(next.ensemble).some(part => part.volume < 1)) {
+    // pp died 
+    if (Object.values(next.ee).some(part => part.volume < 1)) {
       reloadGame()
     }
 
 
     if (prev.level != next.level) {
       next = setupNextLevel(next)
-    } else if (next.drones.length == 0 && next.drops.length == 0) {
+      updateSound(next, audioContext)
+    } else if (next.dd.length == 0 && next.drops.length == 0) {
       // The room is clear, provide the drops
       next = setupDrops(next)
     } 
@@ -1147,7 +1148,7 @@ function game() {
       ([`Use the arrow keys to move`
        , `Choose your Bassline`
        , `Press F to fire`
-       , `Daze the drones to collect their essence`
+       , `Daze the dd to collect their essence`
        , `Assemble all 4 parts to find your track!`]).reduce((y,t) =>(ctx.fillText(t,50, ch-y), (y-50)), 250)
     })
   }
@@ -1159,4 +1160,4 @@ function game() {
 
 // todo decide if it is worth having a global async controls or use something else
 game.controls = []
-game()  
+window.addEventListener('keydown',game,{once:true})  

@@ -76,8 +76,8 @@ S.prototype.createOscillator = function() {
 
   if (this.role == 'kick') {
     var dis = this.ac.createWaveShaper();
-    dis.curve = disCurve(400);
-    dis.oversample = '4x';
+    dis.curve = disCurve(100);
+    dis.oversample = '2x';
     this.o.connect(dis)
     dis.connect(ac.destination)
     return this;
@@ -230,8 +230,8 @@ export var partHat = (when, tempo, melody: Note[]) => {
 export var partKick = (t, tempo, melody: Note[]) => {
   var seq = new S(tempo, melody);
 
-  seq.gain.gain.value = 0.65;
-  seq.gain.gain.value = 0.1;
+  // seq.gain.gain.value = 0.65;
+  seq.gain.gain.value = 0.9;
    
   seq.role = 'kick'
   seq.shape = 'sine'
