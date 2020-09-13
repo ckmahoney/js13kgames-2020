@@ -314,10 +314,10 @@ const Presets =
    * Create an object with new properties from previous object
    * 
    * Golfy workaround for game 13k submission
-   * Since the spread operator is compiled to `Object.ass()`, 
+   * Since the spread operator is compiled to `Object._()`, 
    * this lets us name our own copy of the method. 
    */
-  const ass = (params, defaults = {}) => 
+  const _ = (params, defaults = {}) => 
     Object.assign({}, defaults, params)
 
 
@@ -367,7 +367,7 @@ const Presets =
 
         const pickups = state.pickups.concat(touches.map(drone => createPickup(drone)))
 
-        return ass({drones, ensemble,pickups},state)
+        return _({drones, ensemble,pickups},state)
     } 
     , element(state: State, touches) {
         if (state.level == 0 && touches.length != 1) {
@@ -379,7 +379,7 @@ const Presets =
           { clan: touches[0].clan
           , role: (state.level == 0) ? Role.kick : touches[0].role }
 
-        return ass(
+        return _(
           { ensemble: addToEnsemble(state.ensemble, room.clan, room.role)
           , room
           , drops: []
@@ -391,12 +391,10 @@ const Presets =
     , pickup(state, touches) {
         // picks up one at a time
         const ids = touches.map(pickup => pickup.objectID)
-        log(`touched these pickups`, ids)
         const pickups = state.pickups.filter(pickup =>
           !ids.includes(pickup.objectID))
-
-        const ensemble = addToEnsemble(state.ensemble, state.ensemble.clan, state.room.role, 1)
-        return ass({ensemble, pickups}, state)
+        const ensemble = addToEnsemble(state.ensemble, state.ensemble[state.room.role].clan || state.room.clan, state.room.role, 1)
+        return _({ensemble, pickups}, state)
       }
     }
 
@@ -486,23 +484,23 @@ const walk = (u: Drone, step = 1 ): Drone => {
 
 
 const moveLeft = <U extends UnitPosition>(u: U , amt=7): U => 
-  ass({x: u.x > 0 ? u.x-= amt : 0}, u) 
+  _({x: u.x > 0 ? u.x-= amt : 0}, u) 
 
 
 const moveRight = <U extends UnitPosition>(u: U, amt=7): U => 
-  ass({x: u.x < (canvasWidth - playerWidth) ? u.x += amt : (canvasWidth - playerWidth)}, u)
+  _({x: u.x < (canvasWidth - playerWidth) ? u.x += amt : (canvasWidth - playerWidth)}, u)
 
 
 const moveUp = <U extends UnitPosition>(u: U, amt=7): U  => 
-  ass({y: u.y >= (0) ? u.y -= amt : playerHeight}, u)
+  _({y: u.y >= (0) ? u.y -= amt : playerHeight}, u)
 
 
 const moveDown = <U extends UnitPosition>(u: U, amt=7): U  => 
-  ass({y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight)}, u)
+  _({y: u.y <= (canvasHeight) ? u.y += amt : (canvasHeight)}, u)
 
 
 const createShot = (opts = {}): Shot => 
-  ass(opts, 
+  _(opts, 
     { objectID: objectID()
     , name: 'shot'
     , x: 0
@@ -537,7 +535,7 @@ const createPlayer = (): Player =>
 
 const createDrone = (defaults = {}): Drone => {
   const bias = 0.7; // favor the center of the room
-  return ass(
+  return _(
     { objectID: objectID()
     , name: 'drone'
     , x: bias * Math.random() * canvasWidth
@@ -550,7 +548,7 @@ const createDrone = (defaults = {}): Drone => {
 
 
 const createPickup = (defaults = {}) => 
-  ass(
+  _(
     { objectID: objectID()
     , name: 'pickup'
     }, defaults)
@@ -573,7 +571,7 @@ const createOpeningMusicDrops = (qty = 3) => {
 
 
 const createMusicDrop = (opts = {}) => 
-  ass(opts,
+  _(opts,
     { clan: ''
     , x: 0
     , y: 0
@@ -617,7 +615,7 @@ const applyControls = (time, state: State): State => {
   const isInProgress = (shot) =>
     1 !== (floor((+new Date) / (shot.start + (shot.duration))))
 
-  return ass(
+  return _(
     { shots: shots.filter(isInProgress)
     , player: game.controls.reduce(applyMotion,state.player)
     }, state)
@@ -626,13 +624,13 @@ const applyControls = (time, state: State): State => {
 
 const updateRadial = (unit, time) => {
   const radius = unit.dr(time, unit)
-  return ass({radius, width: radius/2, height: radius/2}, unit)
+  return _({radius, width: radius/2, height: radius/2}, unit)
 }
 
 
 /* Update the x,y,width,height,radius properties of units in state. */
 const applyPositions = (time, state: State): State => 
-  ass(
+  _(
     { shots: state.shots.map((u) => updateRadial(u, +new Date))
     , drops: state.drops.map((u) => updateRadial(u, time))
     , drones: state.drones.map(walk)
@@ -778,14 +776,10 @@ function game() {
   }
 
 
-  const isPlayerDead = ensemble => 
-    // @ts-ignore
-    Object.values(ensemble).some(part => part.volume < 1)
 
-
-  const isEnsembleComplete = ensemble => 
+  const isComplete = ensemble => 
     // @ts-ignore
-    Object.values(ensemble).every(part => part.volume >= 5)
+    Object.values(ensemble).every(part => part.volume >= 6)
 
 
   const drawNPCS: StatefulDraw = (time, state): Draw => {
@@ -1036,7 +1030,7 @@ function game() {
   const applyPlayerCollisions = (state, tree): State => {
     const hits = tree.retrieve(state.player).filter((unit) => collides(unit, state.player))
     const next = hits.reduce((next, collider, i, collisions) => 
-      ass(touchHandlers[collider.name](state, collisions), next)
+      _(touchHandlers[collider.name](state, collisions), next)
     , state)
     return next
   }
@@ -1060,7 +1054,7 @@ function game() {
   const setupNextLevel = (state: State): State => {
     const room = nextRoom(state.room.clan, state.level)
     const drones = getDrones(state.level * 5)
-    return ass({drones, room, pickups: []}, state)
+    return _({drones, room, pickups: []}, state)
   }
 
 
@@ -1072,7 +1066,7 @@ function game() {
       , clan: state.room.clan
       , role: state.room.role
       })
-    return ass({drops: [element]}, state)
+    return _({drops: [element]}, state)
   }
 
   const loop: HandleTick = (time, prev: State, draw, tree) => {
@@ -1085,8 +1079,9 @@ function game() {
 
     next = applyPlayerCollisions(next, tree)
 
-    if (isEnsembleComplete(next.ensemble)) {
-      alert('you are winning!')
+
+    if (isComplete(next.ensemble)) {
+      alert('Good job you winner!')
     }
 
 
@@ -1104,11 +1099,12 @@ function game() {
         pickups.concat(createPickup(drone))
       , next.pickups)
 
-      next = ass({drones, pickups}, next);
+      next = _({drones, pickups}, next);
     }
 
-
-    if (isPlayerDead(next.ensemble)) {
+    
+    // player died 
+    if (Object.values(next.ensemble).some(part => part.volume < 1)) {
       reloadGame()
     }
 
