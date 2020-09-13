@@ -52,7 +52,7 @@ S.prototype.createFxNodes = function() {
 
   this.lp = this.ac.createBiquadFilter()
   this.lp.type = 'lowpass'
-  this.lp.frequency.value = 15000
+  this.lp.frequency.value = 22000
   prev.connect(prev = this.lp)
 
   this.hp = this.ac.createBiquadFilter()
@@ -68,26 +68,10 @@ S.prototype.createFxNodes = function() {
 // recreate the.oillator node (happens on every play)
 S.prototype.createOscillator = function() {
   this.stop();
-    
-  if (this.role == 'hat') {
-    var bufferSize = 2 * ac.sampleRate,
-        buff = ac.createBuffer(1, bufferSize, ac.sampleRate),
-        output = buff.getChannelData(0);
 
-    for (var i = 0; i < bufferSize; i++) {
-        output[i] = Math.random() * 2 - 1;
-    }
-
-    this.o = ac.createBufferSource();
-    this.o.buffer = buff;
-    this.o.loop = true;
-    this.gain.value = 0.1;
-
-  } else {
-    this.o = this.ac.createOscillator();
-    this.o.type = this.shape
-    this.gain.value = 0.2;
-  }
+  this.o = this.ac.createOscillator();
+  this.o.type = this.shape
+  this.gain.value = 0.2;
 
 
   if (this.role == 'kick') {
@@ -98,7 +82,6 @@ S.prototype.createOscillator = function() {
     dis.connect(ac.destination)
     return this;
   }
-
 
   this.o.connect( this.gain );
   this.o.connect(ac.destination);
@@ -201,7 +184,7 @@ export var partLead = (t, tempo, melody: Note[]) => {
   var seq = new S(tempo, melody);
   seq.staccato = 0.55;
   seq.gain.gain.value = 1.0;
-  seq.type = 'square'
+  seq.type = 'sawtooth'
   seq.hp.frequency.value = 1200
   seq.role = 'lead'
 
@@ -212,21 +195,36 @@ export var partLead = (t, tempo, melody: Note[]) => {
 }
 
 
-export var partHat = (t, tempo, melody: Note[]) => {
-  var seq = new S(tempo, melody);
-  seq.staccato = 0.55;
-  seq.gain.gain.value = -20.0;
-  seq.shape = 'square'
-  seq.role = 'hat'
-  seq.hp.frequency.value = 19000
-  seq.lp.frequency.value = 22000
 
+export var partHat = (when, tempo, melody: Note[]) => {
+  const seq = new S(tempo, melody);
+  seq.staccato = 0.55;
+  seq.gain.gain.value = 1.0;
+  seq.type = 'triangle'
 
   return function play() {
-    seq.play(t)
+    seq.play(when)
     return seq
   }
 }
+
+
+
+// export var partHat = (t, tempo, melody: Note[]) => {
+//   var seq = new S(tempo, melody);
+//   seq.staccato = 0.55;
+//   seq.gain.gain.value = -20.0;
+//   seq.shape = 'square'
+//   seq.role = 'hat'
+//   seq.hp.frequency.value = 19000
+//   seq.lp.frequency.value = 22000
+
+
+//   return function play() {
+//     seq.play(t)
+//     return seq
+//   }
+// }
 
 
 export var partKick = (t, tempo, melody: Note[]) => {
@@ -238,7 +236,7 @@ export var partKick = (t, tempo, melody: Note[]) => {
   seq.role = 'kick'
   seq.shape = 'sine'
 
-  seq.lp.frequency.value = 120
+  seq.lp.frequency.value = 240
   seq.hp.frequency.value = 32
 
 
