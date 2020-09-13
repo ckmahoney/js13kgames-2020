@@ -10,6 +10,12 @@ theme: 404
   The final boss must be finished with all four parts assembled
 
 
+code notes: 
+  player health is represented by the `ensemble: Assemblage`
+  if a part is at volume 0, it is dead and the player dies.
+  
+
+
 player attack
   Drops a bomb with burst radius, cooldown is 2s
   ?lazer pickup only
