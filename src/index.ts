@@ -242,26 +242,26 @@ const roleAttributes =
   { [Role.kick]:
     { colorMod(n, time) 
       { return n == 255 ? 50: n }
-    , text: '#' 
-    , rgb: [155, 50, 0]
+    , text: 'K' 
+    , rgb: [255, 50, 0]
     }
   , [Role.tenor]:
     { colorMod(n, time) 
       { return n == 255 ? 100: n }
-    , text: '\\-'
-    , rgb: [155, 250, 0]
+    , text: 'T'
+    , rgb: [255, 250, 0]
     }
   , [Role.alto]:
     { colorMod(n, time) 
       { return n == 255 ? 175: n }
-    , text: '=/'
-    , rgb: [0, 150, 50]
+    , text: 'A'
+    , rgb: [0, 250, 50]
     }
   , [Role.hat]:
     { colorMod(n, time) 
       { return 255 }
-    , text: '@' 
-    , rgb: [0, 150, 255]
+    , text: 'H' 
+    , rgb: [0, 250, 255]
     }
   }
 
@@ -271,8 +271,8 @@ const Presets =
     , bpm: 70
     , voices:
       { [Role.kick]: [0, 5, 0, 7]
-      , [Role.tenor]: [0, 5, NaN, 5]
-      , [Role.alto]: [7, 2, NaN]
+      , [Role.tenor]: [4, 7, 2, 5]
+      , [Role.alto]: [12, 4, 0]
       , [Role.hat]: [12, 4, NaN, 12, 7, NaN, 4, 7]
       }
     }
@@ -281,8 +281,8 @@ const Presets =
     , bpm: 10.5
     , voices: 
       { [Role.kick]: [7, 0, NaN, NaN, 0, NaN, 0, NaN]
-      , [Role.tenor]: [4, 4, 2, 4]
-      , [Role.alto]: [7, 4, 7, NaN]
+      , [Role.tenor]: [2, 4, NaN, 4]
+      , [Role.alto]: [0, 4, 7, NaN]
       , [Role.hat]: [12, NaN, NaN, 0]
       }
     }
@@ -291,7 +291,7 @@ const Presets =
     , bpm: 140
     , voices: 
       { [Role.kick]: [0, NaN, NaN, 0]
-      , [Role.tenor]: [4, 4, 2, 4]
+      , [Role.tenor]: [12, 4, 7]
       , [Role.alto]: [7, 4, 7, NaN]
       , [Role.hat]: [12, NaN, NaN, 0]
       }
@@ -913,13 +913,13 @@ function game() {
   }
 
 
-  const dTiles = (time,s) => 
+  const dTiles = (time,s,level) => 
     (ctx) => {
       for (let i=0;i<canvasWidth / s;i++) {
-        let r = (i *downScale(time, 3)) % 255
+        let r = (i *downScale(time, level + 3)) % 255
         for (let j=0;j<canvasHeight / s;j++) {
           let g = useMod(j,time,state)
-          let b = useMod(i+j,time,state)
+          let b = useMod(j+level,time,state)
           ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
           ctx.fillRect(i*s -i, j*s -j, i*s + s, j*s+s)
         }
@@ -987,7 +987,7 @@ function game() {
     ill( (ctx) => ctx.clearRect(0,0, canvasWidth, canvasHeight))
 
     if (state.level == 0) {
-      ill(dTiles(time, 30))
+      ill(dTiles(time, 30, state.level))
       openingScene(time, state, ill)
       ill( drawShots( time, state) )
       drawUI( time, state, ill )
@@ -1003,7 +1003,7 @@ function game() {
 
 
   const swarmScene = (time, state, ill) => {
-    ill( dTiles(time, 60 - (state.level*3)))
+    ill( dTiles(time, 30 , state.level))
     ill( drawNPCS(time, state) )
     ill( drawPickups(time,state))
     ill( drawShots(time, state))
