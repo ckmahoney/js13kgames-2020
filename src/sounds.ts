@@ -1,4 +1,4 @@
-import { transpose } from './music'
+import { transpose } from './Pitches'
 
 
 type Osc =

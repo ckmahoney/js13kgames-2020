@@ -345,4 +345,3 @@ function distortionCurve(amt = 50) {
 
   return curve;
 };
-
