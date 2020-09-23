@@ -52,7 +52,7 @@ export let randFrom = <T>(arr: any[]): T | void => {
 }
 
 
-export let walk = (root: PitchClass, scale: Intervals[]) => (beats: number, weights: number[], acc: any[]) => {
+export let walk = (root: PitchClass, scale: Intervals[]) => (beats: number, weights: number[], acc = []) => {
   if (acc.length == beats) 
     return acc
 
@@ -128,6 +128,29 @@ export const loop = () => {
 }
 
 
+export const playSpeciesCounterpoint = (root = 415) => {
+  console.log(`using root: ${root}`)
+  const now = audioCtx.currentTime
+  const playback = sequencer(audioCtx)
+  const bpm = 128/4
+  const melody = walk(root, scale('major'))
+  const quality = chord('major')
+
+  // for Species Counterpoint
+  // use four lines each with different step lengths and playback rates
+  const bass = playback(audioCtx.createOscillator(), bpm)
+  const tenor = playback(audioCtx.createOscillator(), bpm*2)
+  const alto = playback(audioCtx.createOscillator(), bpm*4)
+  const soprano = playback(audioCtx.createOscillator(), bpm*8)
+
+  bass(now, walk(root/4, scale('major'))(16, quality(root/4)))()
+  tenor(now, walk(root/2, scale('major'))(32, quality(root/2)))()
+  alto(now, walk(root, scale('major'))(64, quality(root)))()
+  // only one of the parts needs to trigger the callback
+  soprano(now, walk(root*2, scale('major'))(128, quality(root*2)), () => playSpeciesCounterpoint(root) )()
+}
+
+
 export const play = () => {
   const osc = audioCtx.createOscillator()
   const sequence = sequencer(audioCtx)(osc)
@@ -137,13 +160,11 @@ export const play = () => {
   const notes = melody(4, chord('minor')(root), []);
   const start = sequence(audioCtx.currentTime, notes, play)
   start()
-  console.log('using notes: ', notes )
-
 }
 
 document.addEventListener('DOMContentLoaded', e => {
   const btn = document.createElement('button')
   btn.innerText = 'click to play'
-  btn.addEventListener('click', play)
+  btn.addEventListener('click', e => playSpeciesCounterpoint())
   document.body.appendChild(btn)
 })
