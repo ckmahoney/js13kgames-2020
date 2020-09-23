@@ -23,11 +23,9 @@ export let sequencer = (ctx) => (osc: OscillatorNode, bpm = 128) => (when, notes
 
 		for (let i in notes) 
 	    playAt(notes[i], now, parseInt(i))
-
+    
 		osc.start()
-    console.log('has duration: ' + duration);
-		console.log('stopping at ', 1 + now + (duration * notes.length))
-		osc.stop(1 + now + (notes.length))
+		osc.stop(now + (duration * notes.length))
 		osc.onended = onended
 	}
 }
