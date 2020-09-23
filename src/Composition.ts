@@ -151,7 +151,7 @@ export const part = (root, quality: ChordFactory) => (pitches: Intervals[], step
 // export const playSonataForm = () => {
 //   const now = audioCtx.currentTime
 //   const playback = sequencer(audioCtx)
-//   const bpm = 90
+//   const speed = 90
 //   const pitches = scale('major')
 //   const quality = chord('major')
 //   const steps = 13
@@ -162,38 +162,48 @@ export const part = (root, quality: ChordFactory) => (pitches: Intervals[], step
 // }
 
 
-let magnitude = (num, order, base = 2) => 
+let order = (num, order, base = 2) => 
   num * pow(base, order)
 
 
-export const playSpeciesCounterpoint = (root = 415) => {
+
+const defaultConfig = 
+  { steps: 16
+  , voices: 4
+  , speed: 26
+  , quality: 'major'
+  }
+
+
+type SectionSettings = typeof defaultConfig
+
+
+export const playSpeciesCounterpoint = (root = 415, config = defaultConfig) => {
+  const { voices, steps, quality, speed } = config
   const now = audioCtx.currentTime
   const playback = sequencer(audioCtx)
-  const bpm = 108/4
-  const pitches = scale('major')
-  const quality = chord('major')
-  const steps = 16
-  const voices = 4
+  const pitches = scale(quality)
+  const constructor = chord(quality)
 
   // for Species Counterpoint
   // use four independent lines each with different step lengths
-  const bass = playback(audioCtx.createOscillator(), bpm)
-  const tenor = playback(audioCtx.createOscillator(), bpm*2)
-  const alto = playback(audioCtx.createOscillator(), bpm*4)
-  const soprano = playback(audioCtx.createOscillator(), bpm*8)
+  const bass = playback(audioCtx.createOscillator(), speed)
+  const tenor = playback(audioCtx.createOscillator(), speed*2)
+  const alto = playback(audioCtx.createOscillator(), speed*4)
+  const soprano = playback(audioCtx.createOscillator(), speed*8)
 
-  bass(now, walk(root/4, pitches)(magnitude(steps,-2), quality(root/4)))()
-  tenor(now, walk(root/2, pitches)(magnitude(steps, -1), quality(root/2)))()
-  alto(now, walk(root, pitches)(magnitude(steps, 0), quality(root)))()
+  bass(now, walk(root/4, pitches)(order(steps,-2), constructor(root/4)))()
+  tenor(now, walk(root/2, pitches)(order(steps, -1), constructor(root/2)))()
+  alto(now, walk(root, pitches)(order(steps, 0), constructor(root)))()
   // only one of the parts needs to trigger the callback
-  soprano(now, walk(root*2, pitches)(magnitude(steps, 1), quality(root*2)), () => playSpeciesCounterpoint(root) )()
+  soprano(now, walk(root*2, pitches)(order(steps, 1), constructor(root*2)), () => playSpeciesCounterpoint(root) )()
 }
 
 
-export const playArbitraryCounterpoint = (root = 415, voices = 4, voice = 0) => {
+export const playArbitraryCounterpoint =  (root = 415, voices = 4, voice = 0) => {
   const now = audioCtx.currentTime
   const playback = sequencer(audioCtx)
-  const bpm = 90
+  const speed = 90
   const pitches = scale('major')
   const quality = chord('major')
   const steps = 64
@@ -201,7 +211,7 @@ export const playArbitraryCounterpoint = (root = 415, voices = 4, voice = 0) => 
   const oo = (voice == voices - 1) 
     ? () => playArbitraryCounterpoint(randNum(333, 666), voices + 1, 0)
     : () => {}
-  const v = playback(audioCtx.createOscillator(), bpm * pow(2,voice))
+  const v = playback(audioCtx.createOscillator(), speed * pow(2,voice))
   const notes = walk(root * pow(2, voice-2), pitches)
   const n = notes(steps * pow(2, voice-2), quality(root * pow(2, voice-2)))
   const play = v(now, n, oo)
