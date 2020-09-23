@@ -1,6 +1,6 @@
 import { pitchclassToNote, transpose, pitch, Note, Freq, PitchClass } from './Pitches';
 import { scale, relation, chord, Chord, ChordFactory, Intervals } from './Intervals';
-import { audioCtx, sequencer } from './Playback'
+import { audioCtx, sequencer, Melody } from './Playback'
 const { round, random, pow, floor, ceil } = Math
 enum Relationships
   { Tonic
@@ -27,6 +27,9 @@ type Roles =
 type Relationship = 
   { [name: string]: PitchClass
   }
+
+
+
 
 let selectHarmonicRelatives = (tonic: PitchClass, relatives: string[]): Relationship => {
   let r = 
@@ -141,11 +144,12 @@ let randInt = (min = 0, max = 1) =>
 // }
 
 
-export const part = (root, quality: ChordFactory) => (pitches: Intervals[], steps, voice = 3) => {
-  const notes = walk(root * pow(2, voice), pitches)
-  const melody = notes(steps * pow(2, voice), quality(root * pow(2, voice)))
-  return melody
-}
+const part = (scale: Intervals[], steps = 16, notes = []): Note[] => 
+  (notes.length == steps)
+    ? notes
+    : part(scale, steps, [...notes, randFrom(scale)])
+
+
 
 
 // export const playSonataForm = () => {
@@ -170,12 +174,43 @@ let order = (num, order, base = 2) =>
 const defaultConfig = 
   { steps: 16
   , voices: 4
-  , speed: 26
+  , speed: 108
   , quality: 'major'
   }
 
 
 type SectionSettings = typeof defaultConfig
+
+
+const playMusic = (settings: SectionSettings, parts, onended) => {
+  const {steps, voices, speed, quality } = settings
+  const playback = sequencer(audioCtx)
+  parts.forEach((part, i) => {
+    const voice = playback(audioCtx.createOscillator(), speed)
+    voice(audioCtx.currentTime, part, (i == parts.length -1)  ? onended : () => {})()
+  })
+}
+
+
+
+const playAABA = () => {
+  const to = (key) => (step) =>
+    transpose(pitch(key,4), step)
+
+  // const toBb = (step) =>
+  //   transpose(pitch(`Bb`,4), step)
+
+  // const toE = (step, i) => 
+  //   transpose(pitch(`E`, i), step)
+
+  // const F = (step) =>
+  //   transpose(pitch(`F`,4), step)
+
+  const melodyA = part(scale('major'), 8).map(to(`Bb`))
+  const melodyB1 = part(scale('minor'), 6).map(to(`E`))
+  const melodyB2 = part(scale('major'), 2).map(to(`F`))
+  playMusic(defaultConfig, [melodyA, melodyA, melodyB1, melodyB2, melodyA], () => console.log('done'))
+}
 
 
 export const playSpeciesCounterpoint = (root = 415, config = defaultConfig) => {
@@ -233,5 +268,10 @@ document.addEventListener('DOMContentLoaded', e => {
   arb.innerText = 'Play aribitrary counterpoint'
   arb.addEventListener('click', e => playArbitraryCounterpoint())
   document.body.appendChild(arb)
+
+  const aaba = document.createElement('button')
+  aaba.innerText = 'rando chords'
+  aaba.addEventListener('click', e => playAABA())
+  document.body.appendChild(aaba)
 
 })

@@ -2,7 +2,7 @@ import { PitchClass, Freq, Note, Range } from './Pitches'
 import { Seconds } from './Time'
 import { scale } from './Intervals'
 
-type Melody = Freq[] & Note[]
+export type Melody = Freq[] & Note[]
 
 export const audioCtx = new (window.AudioContext)()
 
@@ -14,7 +14,7 @@ let setup = (osc: OscillatorNode, duration: Range, length = 0.8) => (freq, when:
   osc.frequency.setValueAtTime(0, when + (duration * offset) + cutoff)
 }
 
-export let sequencer = (ctx) => (osc: OscillatorNode, bpm = 128) => (when, notes: Note[], onended = () => {}) =>  {
+export let sequencer = (ctx) => (osc: OscillatorNode, bpm = 128) => (when, freqs: Note[], onended = () => {}) =>  {
 	osc.connect(ctx.destination)
 
 	return function startMusic() {
@@ -22,11 +22,11 @@ export let sequencer = (ctx) => (osc: OscillatorNode, bpm = 128) => (when, notes
 		const duration = 60/bpm
 		const playAt = setup(osc, duration)
 
-		for (let i in notes) 
-	    playAt(notes[i], now, parseInt(i))
+		for (let i in freqs) 
+	    playAt(freqs[i], now, parseInt(i))
     
 		osc.start()
-		osc.stop(now + (duration * notes.length))
+		osc.stop(now + (duration * freqs.length))
 		osc.onended = onended
 	}
 }
