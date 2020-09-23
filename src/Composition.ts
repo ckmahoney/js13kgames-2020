@@ -204,7 +204,6 @@ export const playArbitraryCounterpoint = (root = 415, voices = 4, voice = 0) => 
   const v = playback(audioCtx.createOscillator(), bpm * pow(2,voice))
   const notes = walk(root * pow(2, voice-2), pitches)
   const n = notes(steps * pow(2, voice-2), quality(root * pow(2, voice-2)))
-  console.log('using notes',n)
   const play = v(now, n, oo)
   play()
   
