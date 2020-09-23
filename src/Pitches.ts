@@ -74,10 +74,6 @@ let transpositionMap = (rising = true) =>
   [ 1, (16/15), (9/8), (6/5), (5/4), (4/3), rising ? (45/32) : (25/18)]
 
 
-let pitchOctave = (pitch: PitchClass, octave = 5) =>
-  `${pitch}${octave.toString()}`
-
-
 
 export let transpose = (freq: number, steps: number): Freq   => {
   // Use `NaN` to represent a rest
@@ -95,8 +91,8 @@ export let transpose = (freq: number, steps: number): Freq   => {
 }
 
 
-export let nameToFreq = (pitchclass) =>
-  (frequencies[pitchOctave(pitchclass)] || 0)
+export let pitch = (name: PitchClass, octave = 4) =>
+  (frequencies[`${name}${octave.toString()}`] || 0)
 
 
 

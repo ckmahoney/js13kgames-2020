@@ -2,6 +2,7 @@ import { PitchClass, Freq, Note, Range } from './Pitches'
 import { Seconds } from './Time'
 import { scale } from './Intervals'
 
+type Melody = Freq[] & Note[]
 
 export const audioCtx = new (window.AudioContext)()
 
@@ -28,4 +29,22 @@ export let sequencer = (ctx) => (osc: OscillatorNode, bpm = 128) => (when, notes
 		osc.stop(now + (duration * notes.length))
 		osc.onended = onended
 	}
+}
+
+
+export let playPart = (ctx: AudioContext) => (part: Melody, bpm, next = () => {}) => 
+  sequencer(ctx)(ctx.createOscillator(), bpm)(ctx.currentTime, part, next)()
+
+
+export let playMovements = (ctx: AudioContext) => (sections: Melody[][], bpm) => {
+	if (sections.length == 0) 
+	  return
+
+	const section = sections.shift()
+	section.forEach((part, i) => {
+    const oo = (i == part.length - 1)
+      ? () => playMovements(ctx)( sections, bpm )
+      : () => {}
+   	playPart(ctx)(part, bpm, oo)
+	})
 }
