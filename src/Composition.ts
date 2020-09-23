@@ -1,7 +1,7 @@
 import { pitchclassToNote, transpose, nameToFreq, Freq, PitchClass } from './Pitches';
 import { scale, relation, chord, Chord, ChordFactory, Intervals } from './Intervals';
 import { audioCtx, sequencer } from './Playback'
-
+const { round, random, pow, floor, ceil } = Math
 enum Relationships
   { Tonic
   , Supertonic
@@ -47,7 +47,7 @@ export let randFrom = <T>(arr: any[]): T | void => {
   if (arr.length < 1) 
     return
 
-  let index = Math.round(Math.random() * (arr.length - 1))
+  let index = round(random() * (arr.length - 1))
   return arr[index]
 }
 
@@ -75,10 +75,10 @@ export let walkingLine = (root: string, mode = 'ionian', amt = 8 ): Freq[] => {
     let selection
     if ( i % 2 == 0 ) {
       // use a weighted tone on strong beats
-      let index = Math.round(Math.random() * weights.length)
+      let index = round(random() * weights.length)
       selection = weights[index]
     } else {
-      let index = Math.round(Math.random() * pitches.length)
+      let index = round(random() * pitches.length)
       selection = pitches[index]
     }
     notes[i] = selection
@@ -123,18 +123,32 @@ export let createGenericProgression = (root=`C`): Chord[][] => {
 }
 
 
-export const loop = () => {
-  console.log('playing at ' ,+new Date)
+let randNum = (min = 0, max = 1) => 
+  random() * (max - min) + min
+
+
+
+let randInt = (min = 0, max = 1) => 
+  floor(random() * (floor(max) - ceil(min) + 1) + ceil(min))
+
+
+
+export const playSonataForm = (root = 415, development = 3, recap = PitchClass.A) => {
+
 }
+
+let magnitude = (num, order, base = 2) => 
+  num * pow(base, order)
 
 
 export const playSpeciesCounterpoint = (root = 415) => {
-  console.log(`using root: ${root}`)
   const now = audioCtx.currentTime
   const playback = sequencer(audioCtx)
-  const bpm = 128/4
-  const melody = walk(root, scale('major'))
+  const bpm = 108/4
+  const pitches = scale('major')
   const quality = chord('major')
+  const steps = 16
+  const voices = 4
 
   // for Species Counterpoint
   // use four lines each with different step lengths and playback rates
@@ -143,28 +157,68 @@ export const playSpeciesCounterpoint = (root = 415) => {
   const alto = playback(audioCtx.createOscillator(), bpm*4)
   const soprano = playback(audioCtx.createOscillator(), bpm*8)
 
-  bass(now, walk(root/4, scale('major'))(16, quality(root/4)))()
-  tenor(now, walk(root/2, scale('major'))(32, quality(root/2)))()
-  alto(now, walk(root, scale('major'))(64, quality(root)))()
+  bass(now, walk(root/4, pitches)(magnitude(steps,-2), quality(root/4)))()
+  tenor(now, walk(root/2, pitches)(magnitude(steps, -1), quality(root/2)))()
+  alto(now, walk(root, pitches)(magnitude(steps, 0), quality(root)))()
   // only one of the parts needs to trigger the callback
-  soprano(now, walk(root*2, scale('major'))(128, quality(root*2)), () => playSpeciesCounterpoint(root) )()
+  soprano(now, walk(root*2, pitches)(magnitude(steps, 1), quality(root*2)), () => playSpeciesCounterpoint(root) )()
 }
 
 
-export const play = () => {
-  const osc = audioCtx.createOscillator()
-  const sequence = sequencer(audioCtx)(osc)
-  const major = chord('major')
-  const root = 315
-  const melody = walk(root, scale('minor'))
-  const notes = melody(4, chord('minor')(root), []);
-  const start = sequence(audioCtx.currentTime, notes, play)
-  start()
+
+export const playArbitraryCounterpoint = (root = 415, voices = 3, voice = 0) => {
+  const now = audioCtx.currentTime
+  const playback = sequencer(audioCtx)
+  const bpm = voices * 11
+  const pitches = scale('major')
+  const quality = chord('major')
+  const steps = voices
+
+  for (let i = 0; i < voices; i++) {
+    const oo = (i == voices - 1) 
+      ? () => {}
+      : () => playArbitraryCounterpoint(randNum(333, 666), voices + 1)
+    const voice = playback(audioCtx.createOscillator(), bpm * pow(2,i))
+    const notes = walk(root * pow(2, i-2), pitches)
+    const play = voice(now, notes(steps * pow(2, i-2), quality(root * pow(2, i-2))), oo)
+    play()
+  }
 }
+
+
+export const playEgregiousCounterpoint = (root = 415, voices = 3, voice = 0) => {
+  const now = audioCtx.currentTime
+  const playback = sequencer(audioCtx)
+  const bpm = voices * 11
+  const pitches = scale('major')
+  const quality = chord('major')
+  const steps = 13 + voices
+
+  const oo = (voice == voices - 1) 
+    ? () => {}
+    : () => playEgregiousCounterpoint(randNum(333, 333 * voices), voices + 1, voice = 0)
+  const v = playback(audioCtx.createOscillator(), bpm * pow(2, voice))
+  const notes = walk(root * pow(2, voice-2), pitches)
+  v(now, notes(steps * pow(2, voice-2), quality(root * pow(2, voice-2))), oo)()
+
+  if (voice < voices) 
+    playEgregiousCounterpoint(root, voices, voice + 1)
+}
+
 
 document.addEventListener('DOMContentLoaded', e => {
   const btn = document.createElement('button')
-  btn.innerText = 'click to play'
+  btn.innerText = 'Improvise an Organ Chorale'
   btn.addEventListener('click', e => playSpeciesCounterpoint())
   document.body.appendChild(btn)
+
+  const arb = document.createElement('button')
+  arb.innerText = 'Play aribitrary counterpoint'
+  arb.addEventListener('click', e => playArbitraryCounterpoint())
+  document.body.appendChild(arb)
+
+  const ooz = document.createElement('button')
+  ooz.innerText = 'don\'t do it'
+  ooz.addEventListener('click', e => playEgregiousCounterpoint())
+  document.body.appendChild(ooz)
 })
