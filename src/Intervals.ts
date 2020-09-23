@@ -1,20 +1,6 @@
 import { Freq, transpose } from './Pitches'
 
 
-type ChordMap =
-  { [quality: string]: ChordFactory }
-
-
-export interface ChordFactory
-  { (freq: Freq): Chord }
-
-
-interface ChordByFreq 
-  { (quality: string): (freq: Freq) => Chord }
-
-
-export type Chord = [ Freq, Freq, Freq ]
-
 
 export enum Intervals
   { Unison
@@ -31,19 +17,44 @@ export enum Intervals
   , MajorSeventh }
 
 
-let qualities = (): ChordMap => 
-  ({major: createMajorChord
-  , minor: createMinorChord
-  , augmented: createAugmentedChord
-  , diminished: createDiminishedChord
-  , dominant: createDominantChord })
+export enum Quality 
+  { Minor = 'minor'
+  , Major = 'major'
+  , Augmented = 'augmented'
+  , Diminished = 'diminished'
+  , Dominant = 'dominant'
+  , Quartal = 'quartal'
+  }
 
 
-let quality = (q): ChordFactory =>
+type ChordMap =
+  { [quality: string]: ChordFactory }
+
+
+export interface ChordFactory
+  { (freq: Freq): Chord }
+
+
+interface ChordByFreq 
+  { (quality: string): (freq: Freq) => Chord }
+
+
+export type Chord = [ Freq, Freq, Freq ]
+
+
+const qualities = (): ChordMap => 
+  ({[Quality.Major]: createMajorChord
+  , [Quality.Minor]: createMinorChord
+  , [Quality.Augmented]: createAugmentedChord
+  , [Quality.Diminished]: createDiminishedChord
+  , [Quality.Dominant]: createDominantChord })
+
+
+const quality = (q): ChordFactory =>
   qualities()[q] || createMajorChord
 
 
-export let scale = ( mode ) => {
+export const scale = ( mode ) => {
   switch (mode) {
     case 'minor':
     case 'aeolian': 
@@ -94,8 +105,8 @@ export let scale = ( mode ) => {
 }
 
 
-export let relation = (mode: string): ChordMap => {
-  let {major, minor, augmented, diminished, dominant} = qualities()
+export const relation = (mode: string): ChordMap => {
+  const {major, minor, augmented, diminished, dominant} = qualities()
   switch( mode ) {
     case 'aeolian': 
     case 'minor':
@@ -123,35 +134,35 @@ export let relation = (mode: string): ChordMap => {
 }
 
 
-export let chord: ChordByFreq = (q) => (freq): Chord => 
+export const chord: ChordByFreq = (q) => (freq): Chord => 
   quality(q)(freq)
 
 
-let createMajorChord: ChordFactory = (freq): Chord =>
+const createMajorChord: ChordFactory = (freq): Chord =>
   [ freq
   , transpose(freq, 4)
   , transpose(freq, 7) ]
 
 
-let createMinorChord: ChordFactory = (freq): Chord  =>
+const createMinorChord: ChordFactory = (freq): Chord  =>
   [ freq
   , transpose(freq, 3)
   , transpose(freq, 7) ]
 
 
-let createAugmentedChord: ChordFactory = (freq): Chord  =>
+const createAugmentedChord: ChordFactory = (freq): Chord  =>
   [ freq
   , transpose(freq, 4)
   , transpose(freq, 8) ]
 
 
-let createDiminishedChord: ChordFactory = (freq): Chord  =>
+const createDiminishedChord: ChordFactory = (freq): Chord  =>
   [ freq
   , transpose(freq, 3)
   , transpose(freq, 6) ]
 
 
-let createDominantChord: ChordFactory = (freq): Chord  => 
+const createDominantChord: ChordFactory = (freq): Chord  => 
   [ freq
   , transpose(freq, 4)
   , transpose(freq, 10)]
