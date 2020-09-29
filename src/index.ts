@@ -691,7 +691,7 @@ function getSynth(role: Role): Synth {
 const getDuration = (role: Role) => 
   (
     { [Role.kick]: x =>0.5
-    , [Role.tenor]: x =>(x%2==1)? 0.85:05
+    , [Role.tenor]: x => (x%2==1) ? 0.85: 0.5
     , [Role.alto]: x=>0.95
     , [Role.hat]: x =>1/(x+1)
     })[role]
