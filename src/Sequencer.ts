@@ -1,10 +1,33 @@
-import { transpose } from './music'
+type Freq = number;
 
 
-export const ac = new AudioContext()
+let transpositionMap = (rising = true) =>
+  [ 1, (16/15), (9/8), (6/5), (5/4), (4/3), rising ? (45/32) : (25/18)]
 
 
-type Note = [number, number]
+export let transpose = (freq: number, steps: number): Freq   => {
+  // Use `NaN` to represent a rest
+  if (isNaN(freq)) 
+    return 1
+  
+  let modTable = transpositionMap() 
+  let bound = modTable.length - 1
+  if (steps <= bound) {
+    return freq * modTable[steps] 
+  }
+
+  steps = steps - bound
+  return transpose(transpose(freq, bound), steps)
+}
+
+
+export var ac = new AudioContext()
+
+
+export type Note = [number, number] | number[][]
+
+
+export type Synth = typeof partKick | typeof partHat | typeof partLead
 
 
 function Note( freq, duration ) {
@@ -12,9 +35,10 @@ function Note( freq, duration ) {
 }
 
 
-export function Sequence( tempo, notes: [number, number][] = []) {
+export function S( tempo, notes: Note[] = []) {
   this.ac = ac;
   this.createFxNodes();
+  this.fx = [];
   this.tempo = tempo || 120;
   this.loop = true;
   this.smoothing = 0;
@@ -23,167 +47,238 @@ export function Sequence( tempo, notes: [number, number][] = []) {
 }
 
 // create gain and EQ nodes, then connect 'em
-Sequence.prototype.createFxNodes = function() {
-  var eq = [ [ 'bass', 100 ], [ 'mid', 1000 ] , [ 'treble', 2500 ] ],
-    prev = this.gain = this.ac.createGain();
-  eq.forEach(function( config, filter ) {
-    filter = this[ config[ 0 ] ] = this.ac.createBiquadFilter();
-    filter.type = 'peaking';
-    filter.frequency.value = config[ 1 ];
-    prev.connect( prev = filter );
-  }.bind( this ));
+S.prototype.createFxNodes = function() {
+  let prev = this.gain = this.ac.createGain();
+
+  this.lp = this.ac.createBiquadFilter()
+  this.lp.type = 'lowpass'
+  this.lp.frequency.value = 22000
+  prev.connect(prev = this.lp)
+
+  this.hp = this.ac.createBiquadFilter()
+  this.hp.type = 'highpass'
+  this.hp.frequency.value = 80
+  prev.connect(prev = this.hp)
+
   prev.connect( this.ac.destination );
   return this;
 };
 
 
-// recreate the oscillator node (happens on every play)
-Sequence.prototype.createOscillator = function() {
+// recreate the.oillator node (happens on every play)
+S.prototype.createOscillator = function() {
   this.stop();
-  this.osc = this.ac.createOscillator();
-  this.osc.type = this.waveType || 'square';
-  this.osc.connect( this.gain );
+
+  this.o = this.ac.createOscillator();
+  this.o.type = this.shape
+  this.gain.value = 0.2;
+
+
+  if (this.role == 'kick') {
+    var dis = this.ac.createWaveShaper();
+    dis.curve = disCurve(400);
+    dis.oversample = '4x';
+    this.o.connect(dis)
+    dis.connect(ac.destination)
+    return this;
+  }
+
+  this.o.connect( this.gain );
+  this.o.connect(ac.destination);
+
   return this;
 };
 
 
 // schedules this.notes[ index ] to play at the given time
-// returns an AudioContext timestamp of when the note will *end*
-Sequence.prototype.scheduleNote = function( index, when ) {
-  const duration = 60 / this.tempo * this.notes[ index ][1],
+// returns an AudioContext timestamp of t the note will *end*
+S.prototype.scheduleNote = function( index, t ) {
+  var duration = 60 / this.tempo * this.notes[ index ][1],
     cutoff = duration * ( 1 - ( this.staccato || 0 ) );
 
-  this.setFrequency( this.notes[ index ][0], when );
+  
 
+  this.setFrequency( this.notes[ index ][0], t );
+  
   if ( this.smoothing && this.notes[ index ][0] ) {
-    this.slide( index, when, cutoff );
+    this.slide( index, t, cutoff );
   }
 
-  this.setFrequency( 0, when + cutoff );
-  return when + duration;
+  if (this.role == 'kick') {
+    this.o.frequency.exponentialRampToValueAtTime(1, t + cutoff)
+  } else {
+    this.setFrequency( 0, t + cutoff );
+  }
+  return t + duration;
 };
 
 
 // get the next note
-Sequence.prototype.getNextNote = function( index ) {
+S.prototype.getNextNote = function( index ) {
   return this.notes[ index < this.notes.length - 1 ? index + 1 : 0 ];
 };
 
 
 // how long do we wait before beginning the slide? (in seconds)
-Sequence.prototype.getSlideStartDelay = function( duration ) {
-  return duration - Math.min( duration, 60 / this.tempo * this.smoothing );
+S.prototype.getSlideStartDelay = function( width ) {
+  return width - Math.min( width, 60 / this.tempo * this.smoothing );
 };
 
 
 // slide the note at <index> into the next note at the given time,
 // and apply staccato effect if needed
-Sequence.prototype.slide = function( index, when, cutoff ) {
+S.prototype.slide = function( index, t, cutoff ) {
   var next = this.getNextNote( index ),
     start = this.getSlideStartDelay( cutoff );
-  this.setFrequency( this.notes[ index ][0], when + start );
-  this.rampFrequency( next[0], when + cutoff );
+  this.setFrequency( this.notes[ index ][0], t + start );
+  this.rampFrequency( next[0], t + cutoff );
   return this;
 };
 
+S.prototype.setFrequency = function( freq, t ) {
+  if (this.o instanceof OscillatorNode) {
+    this.o.frequency.setValueAtTime( freq, t );
+  }
 
-Sequence.prototype.setFrequency = function( freq, when ) {
-  this.osc.frequency.setValueAtTime( freq, when );
   return this;
 };
 
-Sequence.prototype.rampFrequency = function( freq, when ) {
-  this.osc.frequency.linearRampToValueAtTime( freq, when );
+S.prototype.rampFrequency = function( freq, t ) {
+  this.o.frequency.linearRampToValueAtTime( freq, t );
   return this;
 };
 
 
 // run through all notes in the sequence and schedule them
-Sequence.prototype.play = function( when ) {
-  when = typeof when === 'number' ? when : this.ac.currentTime;
+S.prototype.play = function( t ) {
+  t = (typeof t === 'number') ? t : this.ac.currentTime;
 
   this.createOscillator();
-  this.osc.start( when );
-
+  this.o.start( t+1 );
   this.notes.forEach(function( note, i ) {
-    when = this.scheduleNote( i, when );
+    t = this.scheduleNote( i, t );
   }.bind( this ));
 
-  this.osc.stop( when );
-  this.osc.onended = this.loop ? this.play.bind( this, when ) : null;
-
+  this.o.stop( t );
   return this;
 };
 
 
-// stop playback, null out the oscillator, cancel parameter automation
-Sequence.prototype.stop = function() {
-  if ( this.osc ) {
-    this.osc.onended = null;
-    this.osc.stop( 0 );
-    this.osc.frequency.cancelScheduledValues( 0 );
-    this.osc = null;
+// stop playback, null out the.oillator, cancel parameter automation
+S.prototype.stop = function() {
+  if (this.o instanceof OscillatorNode) {
+    this.o.stop( 0 );
+    this.o.frequency.cancelScheduledValues( 0 );
+    this.o = null;
   }
   return this;
 };
 
 
-const lead = (freq, duration = 1, notes = [4, 9, 9, 7, 4, 9, 10, 10, 11 ]): Note[] =>
-  notes.map((interval,i) => [transpose(freq, interval), duration])
-
-const harmony = (freq, duration = 1, notes = [0, 7, 5, 11, 7, 4, 7, 9]): Note[] =>
-  notes.map((interval,i) => [transpose(freq, interval), duration])
-
-const bass = (freq, duration = 1, notes = [12, 0, 10, 12, 0, 0, 7, 5]): Note[] =>
-  notes.map((interval,i) => [transpose(freq, interval), duration])
-
-
-export const intervalsToMelody = (root, duration = (i) => 1, intervals: number[] = []): Note[] => 
+export var intervalsToMelody = (root, duration = (i) => 1, intervals: number[] = []): Note[] => 
   intervals.map((interval, i) => 
     ([isNaN(interval) ? 0 : transpose(root, interval), duration(i)]))
 
  
-export const partLead = (when, tempo, melody: Note[]) => {
-  const seq = new Sequence(tempo, melody);
+export var partLead = (t, tempo, melody: Note[]) => {
+  var seq = new S(tempo, melody);
   seq.staccato = 0.55;
   seq.gain.gain.value = 1.0;
-  seq.mid.frequency.value = 800;
-  seq.mid.gain.value = 3;
-  return () => seq.play(when)
+  seq.type = 'sawtooth'
+  seq.hp.frequency.value = 1200
+  seq.role = 'lead'
+
+  return function play() {
+    seq.play(t)
+    return seq
+  }
 }
 
 
-export const partHarmony = (when, tempo, melody: Note[]) => {
-  const seq = new Sequence(tempo, melody);
-  seq.mid.frequency.value = 1200;
-  seq.gain.gain.value = 0.8;
+
+export var partHat = (when, tempo, melody: Note[]) => {
+  const seq = new S(tempo, melody);
   seq.staccato = 0.55;
-  return () => seq.play(when)
-  // seq.play( when + ( 60 / tempo ) * 16 );
+  seq.gain.gain.value = 1.0;
+  seq.type = 'triangle'
+
+  return function play() {
+    seq.play(when)
+    return seq
+  }
 }
 
 
-export const partBass = (when, tempo, melody: Note[]) => {
-  const seq = new Sequence(tempo, melody);
 
-  seq.staccato = 0.05;
-  seq.smoothing = 0.4;
+// export var partHat = (t, tempo, melody: Note[]) => {
+//   var seq = new S(tempo, melody);
+//   seq.staccato = 0.55;
+//   seq.gain.gain.value = -20.0;
+//   seq.shape = 'square'
+//   seq.role = 'hat'
+//   seq.hp.frequency.value = 19000
+//   seq.lp.frequency.value = 22000
+
+
+//   return function play() {
+//     seq.play(t)
+//     return seq
+//   }
+// }
+
+
+export var partKick = (t, tempo, melody: Note[]) => {
+  var seq = new S(tempo, melody);
+
   seq.gain.gain.value = 0.65;
-  seq.mid.gain.value = 3;
+  seq.gain.gain.value = 0.1;
    
-  seq.bass.gain.value = 6;
-  seq.bass.frequency.value = 80;
-  seq.mid.gain.value = -6;
-  seq.mid.frequency.value = 500;
-  seq.treble.gain.value = -2;
-  seq.treble.frequency.value = 1400;
-  return () => seq.play(when)
+  seq.role = 'kick'
+  seq.shape = 'sine'
+
+  seq.lp.frequency.value = 240
+  seq.hp.frequency.value = 32
+
+
+  return function play() {
+    seq.play(t)
+    return seq
+  }
 }
 
 
- // export const demoMusic = (tempo = 132) => {
- //  const when = ac.currentTime
- //  playLead(when, tempo, lead(512))
- //  playHarmony(when, tempo, harmony(1024))
- //  playBass(when, tempo, bass(128))
- // }
+export function getBeatIndex(time: number, bpm, notes = []) {
+  var width = getBeatLength(bpm)
+  var height = width * notes.length
+  var z = time % height
+
+  return notes.findIndex((note, i) => 
+    z <= ((i+1) * width))
+}
+
+
+export var getBeatLength =bpm =>
+  (60/bpm)
+
+
+export function getStartOfNextBar(time, bpm, notes) {
+  let currentIndex = getBeatIndex(time, bpm, notes)
+  var beatWidth = getBeatLength(bpm)
+
+}
+
+function disCurve(amt = 50) {
+  var n = 44100,
+    c = new Float32Array(n),
+    deg = Math.PI / 180,
+    i = 0,
+    x;
+  for ( ; i < n; ++i ) {
+    x = i * 2 / n - 1;
+    c[i] = ( 3 + amt ) * x * 20 * deg / ( Math.PI + amt * Math.abs(x) );
+  }
+
+
+  return c;
+};
+
