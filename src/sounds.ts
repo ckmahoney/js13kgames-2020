@@ -1,4 +1,4 @@
-import { transpose } from './music'
+import { transpose } from './Pitches'
 
 
 type Osc =
@@ -49,7 +49,6 @@ const setupNextBeat = (time, opts, duration) => {
   console.log('should stop at', time + duration)
   return osc
 }
-
 
 
 const getBeatIndex = (time: number, notes: number[], beatDuration) => {
