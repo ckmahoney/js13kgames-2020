@@ -4,12 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "rollup": "node_modules/.bin/rollup -c rollup.config.js --no-strict",
+    "dev": "node_modules/.bin/webpack --mode=development --watch",
+    "repl": "node_modules/.bin/webpack --config=repl.config.js --watch"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@rollup/plugin-typescript": "^6.0.0",
     "@types/node": "^14.6.2",
     "@types/webgl2": "0.0.5",
     "@typescript-eslint/eslint-plugin": "^3.10.1",
@@ -17,6 +20,9 @@
     "browser-sync": "^2.26.12",
     "browser-sync-webpack-plugin": "^2.2.2",
     "eslint": "^7.7.0",
+    "rollup": "^2.26.11",
+    "rollup-plugin-terser": "^7.0.2",
+    "terser": "^5.3.1",
     "ts-loader": "^8.0.3",
     "typescript": "^4.0.2",
     "webpack": "^4.44.1",
