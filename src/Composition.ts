@@ -141,13 +141,12 @@ const toKey = (key) => (interval) =>
 
 const modulate = (notes: Note[], key: PitchClass) => {
   return notes.map((note, i) => {
-
-    return transpose 
+    return transpose //(note, i)
   })
 }
 
 
-const createMelody = (tonic = PitchClass.As) => {
+const _createMelody = (tonic = PitchClass.As) => {
   const subdominant = (tonic + 5) % 11
   const dominant = (tonic + 7) % 11
 
@@ -155,15 +154,14 @@ const createMelody = (tonic = PitchClass.As) => {
   const melodyB = modulate(part(scale('minor'), 8, []), toPitchClass((subdominant)))
   const melodyC = modulate(part(scale('major'), 8, []), toPitchClass((dominant)))
 
-  console.log()
   return [...melodyA, ...melodyA, ...melodyB, ...melodyC]
 }
 
 
-const _createMelody = () => {
-  const melodyA = part(scale('minor'), 8, []).map(toKey(`Bb`))
-  const melodyB = part(scale('major'), 8, []).map(toKey(`D`))
-  const melodyC = part(scale('major'), 8, []).map(toKey(`F`))
+const createMelody = () => {
+  const melodyA = part(scale('minor'), 4, []).map(toKey(`Bb`))
+  const melodyB = part(scale('major'), 2, []).map(toKey(`D`))
+  const melodyC = part(scale('major'), 2, []).map(toKey(`F`))
   return [...melodyA, ...melodyA, ...melodyB, ...melodyC]
 }
 
@@ -179,6 +177,7 @@ const playComposition = (settings: SectionSettings, parts, onended = noop ) => {
   
   parts.reduce((now, notes, i, list) => {
     console.log(`part starts at time`, now)
+    console.log(`using notes`, notes)
     const voice = playback(audioCtx.createOscillator(), speed)
     const play = voice(now, notes, isFinalVoice(i, list.length) ? onended : noop)
     play()
