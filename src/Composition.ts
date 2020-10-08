@@ -2,7 +2,7 @@ import { transpose, pitch, Note, Freq, PitchClass, toPitchClass } from './Pitche
 import { scale, relation, chord, Chord, ChordFactory, Intervals } from './Intervals';
 import { sequencer, Melody, audioCtx } from './Playback'
 import { keyMenu } from './GUI'
-import { muse } from './muse'
+import { record, muse } from './muse'
 const { round, random, pow, floor, ceil } = Math
 
 
@@ -174,56 +174,32 @@ const loopAABA = (melodies = [[]], settings = defaultConfig) => {
 
 const playComposition = (settings: SectionSettings, parts, onended = noop ) => {
   const {steps, voices, speed, quality} = settings
-  const playCtx = new window.AudioContext()
-  const recordCtx = new window.AudioContext()
-  // @ts-ignore
-  const mixer = recordCtx.createMediaStreamDestination()
-  // @ts-ignore
-  const recorder = new window.MediaRecorder(mixer.stream)
-  // const samples = audioCtx.createBuffer(parts.length, audioCtx.sampleRate * 9, audioCtx.sampleRate)
-  const samples = []
-
-  recorder.ondataavailable = function(evt) {
-    // @ts-ignore
-    const title = document.querySelector("input[name=title]")?.value || 'Algo Music'
-    // @ts-ignore
-    console.log(`data avalable:`, window.event=evt)
-    samples.push(evt.data)
-    let anchor = document.createElement('a')
-    let url = URL.createObjectURL(new Blob(samples))
-    anchor.href = url
-    anchor.download = `${title}.wav`
-    anchor.innerText = "Download Track"
-    document.querySelector("audio").src = url
-    document.body.appendChild(anchor)
-    anchor.onclick = anchor.remove
-    // anchor.click()
-    // anchor.remove()
-   }
-
-  recorder.addEventListener('stop', (e) => {
-    // Make blob out of our blobs, and open it.
-    let blob = new Blob(samples, { 'type' : 'audio/ogg; codecs=opus' });
-    const url = URL.createObjectURL(blob)
-    console.log(`url is `, url);
-  })
-
-
-  const playback = sequencer(audioCtx)
-  const recording = sequencer(audioCtx, recorder)
-
-  const stop = document.createElement(`button`)
-  stop.onclick = () => audioCtx.close()
+  const ctx = new AudioContext()
+  const playback = sequencer(ctx)
+  const nodes = []
+  const halt = document.createElement(`button`)
+  halt.innerText = `Cancel`
+  halt.onclick = () => ctx.close()
   
   parts.reduce((now, notes, i, list) => {
-    const voice = playback(audioCtx.createOscillator(), speed)
-    const mimic = recording(audioCtx.createOscillator(), speed)
-    const play = voice(now, notes, isFinalVoice(i, list.length) ? onended : noop)
-    const record = mimic(now, notes, () => console.log(`finished recording for voice ${i}`))
+    nodes.push(ctx.createOscillator())
+    const voice = playback(nodes[i], speed)
+    let callback = noop
+    if (isFinalVoice(i, list.length)) {
+      console.log(`capturng nodes`,JSON.stringify(nodes))
+      let capture = record(ctx, nodes)
+      callback = () => {
+        capture()
+        onended()
+      }
+    }
+    const play = voice(now, notes, callback)
     play()
-    record()
     return now + speed * list.length;
-  }, audioCtx.currentTime)
+  }, ctx.currentTime)
+
+  
+
 }
 
 
@@ -293,7 +269,7 @@ document.addEventListener('DOMContentLoaded', e => {
   // const menu = keyMenu()
   // document.body.appendChild(menu.element)
 
-  button('Record improvised composition', _ =>loopAABA([createMelody()], {...defaultConfig, speed: 128}))
+  button('Record improvised composition', _ =>loopAABA([createMelody(), createMelody(), createMelody()], {...defaultConfig, speed: 128}))
   button('muse', muse)
 
 })

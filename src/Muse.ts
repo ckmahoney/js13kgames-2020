@@ -1,3 +1,41 @@
+export let record = (ctx, voices) => {
+  const dest = ctx.createMediaStreamDestination()
+  //@ts-ignore
+  const recorder = new window.MediaRecorder(dest.stream);
+  const chunks = [];
+  voices.forEach(o => o.connect(dest))
+
+
+  recorder.ondataavailable = function(evt) {
+     // push each chunk (blobs) in an array
+     chunks.push(evt.data);
+   };
+
+  recorder.onstop = function(evt) {
+     // Make blob out of our blobs, and open it.
+    let blob = new Blob(chunks, { 'type' : 'audio/ogg; codecs=opus' });
+    let audio = document.createElement('audio');
+    const url = URL.createObjectURL(blob)
+    audio.src = url;
+    audio.setAttribute('controls','true')
+    document.body.appendChild(audio)
+   };
+
+  recorder.addEventListener('stop', (e) => {
+       let anchor = document.createElement('a')
+       anchor.href = URL.createObjectURL(new Blob(chunks))
+       anchor.download = "Algo Music.wav"
+       document.body.appendChild(anchor)
+       anchor.click()
+       anchor.remove()
+   })
+
+  recorder.start()
+  return function capture() {
+      let data = recorder.requestData()
+      recorder.stop()
+  }
+}
 
 export function muse() {
     const createPlayer = src => {
