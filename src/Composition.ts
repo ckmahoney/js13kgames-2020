@@ -1,7 +1,8 @@
 import { transpose, pitch, Note, Freq, PitchClass, toPitchClass } from './Pitches';
 import { scale, relation, chord, Chord, ChordFactory, Intervals } from './Intervals';
-import { audioCtx, sequencer, Melody } from './Playback'
+import { sequencer, Melody, audioCtx } from './Playback'
 import { keyMenu } from './GUI'
+import { muse } from './muse'
 const { round, random, pow, floor, ceil } = Math
 
 
@@ -159,9 +160,9 @@ const _createMelody = (tonic = PitchClass.As) => {
 
 
 const createMelody = () => {
-  const melodyA = part(scale('minor'), 4, []).map(toKey(`Bb`))
-  const melodyB = part(scale('major'), 2, []).map(toKey(`D`))
-  const melodyC = part(scale('major'), 2, []).map(toKey(`F`))
+  const melodyA = part(scale('minor'), 2, []).map(toKey(`Bb`))
+  const melodyB = part(scale('major'), 1, []).map(toKey(`D`))
+  const melodyC = part(scale('major'), 1, []).map(toKey(`F`))
   return [...melodyA, ...melodyA, ...melodyB, ...melodyC]
 }
 
@@ -173,14 +174,54 @@ const loopAABA = (melodies = [[]], settings = defaultConfig) => {
 
 const playComposition = (settings: SectionSettings, parts, onended = noop ) => {
   const {steps, voices, speed, quality} = settings
+  const playCtx = new window.AudioContext()
+  const recordCtx = new window.AudioContext()
+  // @ts-ignore
+  const mixer = recordCtx.createMediaStreamDestination()
+  // @ts-ignore
+  const recorder = new window.MediaRecorder(mixer.stream)
+  // const samples = audioCtx.createBuffer(parts.length, audioCtx.sampleRate * 9, audioCtx.sampleRate)
+  const samples = []
+
+  recorder.ondataavailable = function(evt) {
+    // @ts-ignore
+    const title = document.querySelector("input[name=title]")?.value || 'Algo Music'
+    // @ts-ignore
+    console.log(`data avalable:`, window.event=evt)
+    samples.push(evt.data)
+    let anchor = document.createElement('a')
+    let url = URL.createObjectURL(new Blob(samples))
+    anchor.href = url
+    anchor.download = `${title}.wav`
+    anchor.innerText = "Download Track"
+    document.querySelector("audio").src = url
+    document.body.appendChild(anchor)
+    anchor.onclick = anchor.remove
+    // anchor.click()
+    // anchor.remove()
+   }
+
+  recorder.addEventListener('stop', (e) => {
+    // Make blob out of our blobs, and open it.
+    let blob = new Blob(samples, { 'type' : 'audio/ogg; codecs=opus' });
+    const url = URL.createObjectURL(blob)
+    console.log(`url is `, url);
+  })
+
+
   const playback = sequencer(audioCtx)
+  const recording = sequencer(audioCtx, recorder)
+
+  const stop = document.createElement(`button`)
+  stop.onclick = () => audioCtx.close()
   
   parts.reduce((now, notes, i, list) => {
-    console.log(`part starts at time`, now)
-    console.log(`using notes`, notes)
     const voice = playback(audioCtx.createOscillator(), speed)
+    const mimic = recording(audioCtx.createOscillator(), speed)
     const play = voice(now, notes, isFinalVoice(i, list.length) ? onended : noop)
+    const record = mimic(now, notes, () => console.log(`finished recording for voice ${i}`))
     play()
+    record()
     return now + speed * list.length;
   }, audioCtx.currentTime)
 }
@@ -232,23 +273,28 @@ export const playArbitraryCounterpoint =  (root = 415, voices = 4, voice = 0) =>
 
 
 document.addEventListener('DOMContentLoaded', e => {
-  const btn = document.createElement('button')
-  btn.innerText = 'Improvise an Organ Chorale'
-  btn.addEventListener('click', e => playSpeciesCounterpoint())
-  document.body.appendChild(btn)
+  let button = (name, cb) => {
+    const b = document.createElement('button')
+    b.innerText = name
+    b.addEventListener('click', cb)
+    document.body.appendChild(b)
+  }
 
-  const arb = document.createElement('button')
-  arb.innerText = 'Play aribitrary counterpoint'
-  arb.addEventListener('click', e => playArbitraryCounterpoint())
-  document.body.appendChild(arb)
+  // const btn = document.createElement('button')
+  // btn.innerText = 'Improvise an Organ Chorale'
+  // btn.addEventListener('click', e => playSpeciesCounterpoint())
+  // document.body.appendChild(btn)
 
-  const menu = keyMenu()
-  document.body.appendChild(menu.element)
+  // const arb = document.createElement('button')
+  // arb.innerText = 'Play aribitrary counterpoint'
+  // arb.addEventListener('click', e => playArbitraryCounterpoint())
+  // document.body.appendChild(arb)
 
-  const aaba = document.createElement('button')  
-  aaba.innerText = 'Play improvised composition'
-  console.log(`mae a melody`, createMelody())
-  aaba.addEventListener('click', e => loopAABA([createMelody(), createMelody(), createMelody()], {...defaultConfig, speed: 128}))
-  document.body.appendChild(aaba)
+  // const menu = keyMenu()
+  // document.body.appendChild(menu.element)
+
+  button('Record improvised composition', _ =>loopAABA([createMelody()], {...defaultConfig, speed: 128}))
+  button('muse', muse)
+
 })
 
